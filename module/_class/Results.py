@@ -40,6 +40,7 @@ class Results(DataProcessor):
         for race_id in tqdm(race_id_list):
             if len(pre_race_results) and race_id in pre_race_results.index:
                 continue
+            time.sleep(1)
             try:
                 url = "https://db.netkeiba.com/race/" + race_id
                 #メインとなるテーブルデータを取得
@@ -86,7 +87,6 @@ class Results(DataProcessor):
                 #インデックスをrace_idにする
                 df.index = [race_id] * len(df)
                 race_results[race_id] = df
-                time.sleep(1)
             #存在しないrace_idを飛ばす
             except IndexError:
                 continue

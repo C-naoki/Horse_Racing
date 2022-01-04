@@ -34,10 +34,10 @@ class Peds:
         for horse_id in tqdm(horse_id_list):
             if len(pre_ped_results) and horse_id in pre_ped_results.index:
                 continue
+            time.sleep(1)
             try:
                 url = "https://db.netkeiba.com/horse/ped/" + horse_id
                 df = pd.read_html(url)[0]
-
                 #重複を削除して1列のSeries型データに直す
                 generations = {}
                 for i in reversed(range(5)):
@@ -45,9 +45,7 @@ class Peds:
                     df.drop([i], axis=1, inplace=True)
                     df = df.drop_duplicates()
                 ped = pd.concat([generations[i] for i in range(5)]).rename(horse_id)
-
                 peds_dict[horse_id] = ped.reset_index(drop=True)
-                time.sleep(1)
             except IndexError:
                 continue
             except Exception as e:

@@ -39,6 +39,7 @@ class HorseResults:
         for horse_id in tqdm(horse_id_list):
             if len(pre_horse_results) and horse_id in pre_horse_results.index:
                 continue
+            time.sleep(1)
             try:
                 url = 'https://db.netkeiba.com/horse/' + horse_id
                 df = pd.read_html(url)[3]
@@ -47,7 +48,6 @@ class HorseResults:
                     df = pd.read_html(url)[4]
                 df.index = [horse_id] * len(df)
                 horse_results[horse_id] = df
-                time.sleep(1)
             except IndexError:
                 continue
             except Exception as e:

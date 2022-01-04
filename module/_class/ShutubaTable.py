@@ -15,14 +15,13 @@ class ShutubaTable(DataProcessor):
     def scrape(cls, race_id_list, date):
         data = pd.DataFrame()
         for race_id in tqdm(race_id_list):
+            time.sleep(1)
             url = 'https://race.netkeiba.com/race/shutuba.html?race_id=' + race_id
             df = pd.read_html(url)[0]
             df = df.T.reset_index(level=0, drop=True).T
-
             html = requests.get(url)
             html.encoding = "EUC-JP"
             soup = BeautifulSoup(html.text, "html.parser")
-
             texts = soup.find('div', attrs={'class': 'RaceData01'}).text
             texts = re.findall(r'\w+', texts)
             for text in texts:
@@ -44,7 +43,6 @@ class ShutubaTable(DataProcessor):
                 if 'ダ' in text:
                     df['race_type'] = ['ダート'] * len(df)
             df['date'] = [date] * len(df)
-
             # horse_id
             horse_id_list = []
             horse_td_list = soup.find_all("td", attrs={'class': 'HorseInfo'})
@@ -59,10 +57,8 @@ class ShutubaTable(DataProcessor):
                 jockey_id_list.append(jockey_id)
             df['horse_id'] = horse_id_list
             df['jockey_id'] = jockey_id_list
-
             df.index = [race_id] * len(df)
             data = data.append(df)
-            time.sleep(1)
         return cls(data)
 
     #前処理

@@ -21,6 +21,7 @@ class Return:
         for race_id in tqdm(race_id_list):
             if len(pre_return_tables) and race_id in pre_return_tables.index:
                 continue
+            time.sleep(1)
             try:
                 url = "https://db.netkeiba.com/race/" + race_id
 
@@ -30,13 +31,10 @@ class Return:
                 html = f.read()
                 html = html.replace(b'<br />', b'br')
                 dfs = pd.read_html(html)
-
                 #dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
                 df = pd.concat([dfs[1], dfs[2]])
-
                 df.index = [race_id] * len(df)
                 return_tables[race_id] = df
-                time.sleep(1)
             except IndexError:
                 continue
             except Exception as e:
