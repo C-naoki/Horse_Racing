@@ -80,11 +80,12 @@ class ShutubaTable(DataProcessor):
         df['枠'] = df['枠'].astype(int)
         df['馬番'] = df['馬番'].astype(int)
         df['斤量'] = df['斤量'].astype(int)
-	
+
         df['開催'] = df.index.map(lambda x:str(x)[4:6])
 
         #6/6出走数追加
         df['n_horses'] = df.index.map(df.index.value_counts())
+        df["course_len"] = df["course_len"].astype(float) // 100
 
         # 使用する列を選択
         df = df[['枠', '馬番', '斤量', 'course_len', 'weather','race_type',
