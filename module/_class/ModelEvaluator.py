@@ -79,8 +79,7 @@ class ModelEvaluator:
                 * rt_1R['return']/100 * amount
         if kind == 'wide':
             rt_1R = self.wide.loc[race_id]
-            return_ = (rt_1R[['win_0', 'win_1']].\
-                           apply(lambda x: set(x)==set(umaban), axis=1)) \
+            return_ = (rt_1R[['win_0', 'win_1']].apply(lambda x: set(x)==set(umaban), axis=1)) \
                 * rt_1R['return']/100 * amount
             return_ = return_.sum()
         if kind == 'sanrentan':
@@ -343,7 +342,7 @@ class ModelEvaluator:
         return n_bets, return_rate, n_hits, std
     
     def sanrentan_nagashi(self, X, threshold = 1.5, n_aite=7):
-        pred_table = self.pred_table(X, threshold, bet_only = False)
+        pred_table = self.pred_table(X, threshold, bet_only = False).sort_values('score')
         n_bets = 0
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
@@ -351,8 +350,7 @@ class ModelEvaluator:
             if len(preds_jiku) == 1:
                 continue
             elif len(preds_jiku) == 2:
-                preds_aite = preds.sort_values('score', ascending = False)\
-                    .iloc[2:(n_aite+2)]['馬番']
+                preds_aite = preds.sort_values('score', ascending = False).iloc[2:(n_aite+2)]['馬番']
                 return_ = preds_aite.map(
                     lambda x: self.bet(
                         race_id, 'sanrentan',
