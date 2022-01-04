@@ -27,8 +27,8 @@ if __name__ == '__main__':
     # 欲しい出馬表のrace_id, 日付を引数とする。
     # "https://db.netkeiba.com/race/" + race_id (データベース)
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
-    race_id_list = ['2021060508{}'.format(str(i).zfill(2)) for i in range(1, 13)]
-    st = c.ShutubaTable.scrape(race_id_list=race_id_list, date='2021/12/26')
+    race_id_list = ['2021060509{}'.format(str(i).zfill(2)) for i in range(1, 13)]
+    st = c.ShutubaTable.scrape(race_id_list=race_id_list, date='2021/12/28')
     st.preprocessing()
     st.merge_horse_results(hr)
     st.merge_peds(p.peds_e)
@@ -45,17 +45,34 @@ if __name__ == '__main__':
     X_valid = valid.drop(['rank', 'date', '単勝'], axis=1)
     y_valid = valid['rank']
 
-    params = {'bagging_fraction': 1.0,
-    'bagging_freq': 0,
-    'feature_fraction': 0.4,
-    'feature_pre_filter': False,
-    'lambda_l1': 9.073888467934557,
-    'lambda_l2': 4.497950393394061,
-    'min_child_samples': 25,
-    'num_leaves': 31,
-    'objective': 'binary',
-    'random_state': 100}
+    params = {'objective': 'binary',
+            'random_state': 100, 
+            'feature_pre_filter': False, 
+            'lambda_l1': 6.00603536633129, 
+            'lambda_l2': 8.63347702506763e-06, 
+            'num_leaves': 64, 
+            'feature_fraction': 0.4, 
+            'bagging_fraction': 1.0, 
+            'bagging_freq': 0, 
+            'min_child_samples': 10}
+    # import optuna.integration.lightgbm as lgb_o
 
+    # lgb_train = lgb_o.Dataset(X_train.values, y_train.values)
+    # lgb_valid = lgb_o.Dataset(X_valid.values, y_valid.values)
+
+    # # binary: 予測が0 or 1の時に使う。
+    # params = {
+    #     'objective': 'binary',
+    #     'random_state': 100
+    # }
+
+    # lgb_clf_o = lgb_o.train(params,
+    #                         lgb_train,
+    #                         valid_sets=(lgb_train, lgb_valid),
+    #                         verbose_eval=100,
+    #                         early_stopping_rounds=10
+    #                         )
+    # print("params = {}".format(lgb_clf_o.params))
     lgb_clf = lgb.LGBMClassifier(**params)
     lgb_clf.fit(X.values, y.values)
 
@@ -70,4 +87,4 @@ if __name__ == '__main__':
     pred = me.predict_proba(X_fact, train=False)
     proba_table = st.data_c[['馬番']].copy()
     proba_table['score'] = pred
-    print(proba_table.sort_values('score', ascending = False).head(30))
+    print(proba_table.sort_values('score', ascending = False).head(50))
