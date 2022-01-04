@@ -56,7 +56,7 @@ class ModelEvaluator:
         pred_table['pred'] = self.predict(X, threshold)
         pred_table['score'] = self.proba
         if bet_only:
-            return pred_table[pred_table['pred']==1][['馬番', '単勝', 'score']]
+            return pred_table[pred_table['pred']==1]
         else:
             return pred_table[['馬番', '単勝', 'score', 'pred']]
         
