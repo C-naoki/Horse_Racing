@@ -26,7 +26,7 @@ class ShutubaTable(DataProcessor):
             texts = re.findall(r'\w+', texts)
             for text in texts:
                 if 'm' in text:
-                    df['course_len'] = [int(re.findall(r'\d+', text)[-1])] * len(df)
+                    df['course_len'] = [int(re.findall(r"(\d+)m", text)[0])] * len(df)
                 if text in ["曇", "晴", "雨", "小雨", "小雪", "雪"]:
                     df["weather"] = [text] * len(df)
                 if text in ["良", "稍重", "重"]:

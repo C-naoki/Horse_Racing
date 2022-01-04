@@ -60,7 +60,7 @@ class Results(DataProcessor):
                     if "障" in text:
                         df["race_type"] = ["障害"] * len(df)
                     if "m" in text:
-                        df["course_len"] = [int(re.findall(r"\d+", text)[-1])] * len(df)
+                        df["course_len"] = int(re.findall(r"(\d+)m", text)[0]) * len(df)
                     if text in ["良", "稍重", "重", "不良"]:
                         df["ground_state"] = [text] * len(df)
                     if text in ["曇", "晴", "雨", "小雨", "小雪", "雪"]:
