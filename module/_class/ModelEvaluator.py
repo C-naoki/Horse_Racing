@@ -30,7 +30,7 @@ class ModelEvaluator:
             )
         if std:
             #レース内で標準化して、相対評価する。「レース内偏差値」みたいなもの。
-            standard_scaler = lambda x: (x - x.mean()) / x.std()
+            standard_scaler = lambda x: (x - x.mean()) / x.std(ddof=0)
             proba = proba.groupby(level=0).transform(standard_scaler)
         if minmax:
             #データ全体を0~1にする
