@@ -1,6 +1,3 @@
-import sys
-sys.dont_write_bytecode = True
-
 from .DataProcessor import DataProcessor
 from .HorseResults import HorseResults
 from .ModelEvaluator import ModelEvaluator

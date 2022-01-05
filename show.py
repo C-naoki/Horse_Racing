@@ -1,6 +1,3 @@
-import sys
-sys.dont_write_bytecode = True
-
 import module as m
 import module._class as c
 import _dat
