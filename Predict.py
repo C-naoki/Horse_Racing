@@ -69,8 +69,11 @@ if __name__ == '__main__':
         proba_table['score'] = pred
         print("~Expected results~")
         for proba in proba_table.groupby(level=0):
-            race_num = proba[0]
-            print("\n<" + venue_name + race_num[-2:] + "R>")
+            if proba[0][-2] == "0":
+                race_num = proba[0][-1]
+            else:
+                race_num = proba[0][-2:]
+            print("\n<" + venue_name + race_num + "R>")
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
             print("本命◎ : 馬番 {} ({:.3f})".format(race_proba.iat[0, 0], race_proba.iat[0, 1]))
             print("対抗○ : 馬番 {} ({:.3f})".format(race_proba.iat[1, 0], race_proba.iat[1, 1]))
