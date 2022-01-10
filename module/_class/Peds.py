@@ -73,5 +73,6 @@ class Peds:
     def encode(self):
         df = self.peds.copy()
         for column in df.columns:
+            df = df.astype('str')
             df[column] = LabelEncoder().fit_transform(df[column].fillna('Na'))
         self.peds_e = df.astype('category')
