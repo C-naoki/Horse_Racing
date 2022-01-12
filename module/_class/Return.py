@@ -30,9 +30,10 @@ class Return:
                 f = urlopen(url)
                 html = f.read()
                 html = html.replace(b'<br />', b'br')
-                dfs = pd.read_html(html)
+                dfs1 = pd.read_html(html, match='単勝')[1]
+                dfs2 = pd.read_html(html, match='三連複')[0]
                 #dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
-                df = pd.concat([dfs[1], dfs[2]])
+                df = pd.concat([dfs1, dfs2])
                 df.index = [race_id] * len(df)
                 return_tables[race_id] = df
             except IndexError:
@@ -113,5 +114,5 @@ class Return:
         renpuku = self.return_tables[self.return_tables[0]=='三連複'][[1,2]]
         wins = renpuku[1].str.split('-', expand=True)[[0,1,2]].add_prefix('win_')
         return_ = renpuku[2].rename('return')
-        df = pd.concat([wins, return_], axis=1) 
+        df = pd.concat([wins, return_], axis=1)
         return df.apply(lambda x: pd.to_numeric(x, errors='coerce'))
