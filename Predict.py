@@ -7,11 +7,14 @@ import numpy as np
 import optuna.integration.lightgbm as lgb_o
 import lightgbm as lgb
 import openpyxl as xl
+import datetime
 
 from environment.variables import *
 from tabulate import tabulate
 from openpyxl.styles import PatternFill
-from openpyxl.utils import column_index_from_string
+from openpyxl.styles.borders import Border, Side
+from openpyxl.styles import Font
+from openpyxl.styles.alignment import Alignment
 
 if __name__ == '__main__':
     venue_id_list = ["2022060101", "2022070101"] # race_id_list
@@ -19,6 +22,9 @@ if __name__ == '__main__':
     year = date[0:4]
     month = date[5:7]
     day = date[8:10]
+    dt_now = datetime.datetime.now() # 今の日付
+    race_date = datetime.date(int(year), int(month), int(day)) # レース日
+    today = datetime.date(dt_now.year, dt_now.month, dt_now.day)
     if month[0] == '0': month = month[1]
     if day[0] == '0': day = day[1]
     excel_path = 'results/'+year+'/'+month+'月.xlsx'
@@ -67,6 +73,8 @@ if __name__ == '__main__':
         st.process_categorical(r.le_horse, r.le_jockey, r.data_pe)
         print("\n<finish making race card>\n")
 
+        today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list)
+
         # ModelEvaluator
         me = c.ModelEvaluator(lgb_clf, ['_dat/pickle/overall/return_tables.pickle'])
         # X_fact = st.data_c.drop(['date', '体重', '体重変化'], axis=1)
@@ -82,7 +90,7 @@ if __name__ == '__main__':
         pd.options.display.float_format = '{:.4f}'.format
         predict_df = pd.DataFrame(
                                     index = [], 
-                                    columns = ["三連複ランク", "本命馬ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△"]
+                                    columns = ["三連複ランク", "本命馬ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "本命馬着順"]
                                 )
         print("<"+venue_name+">")
         for proba in proba_table.groupby(level=0):
@@ -105,7 +113,8 @@ if __name__ == '__main__':
                 favorite_rank = "B"
             else:
                 favorite_rank = "A"
-            predict_df.loc[race_num+"R"] = [triple_rank, favorite_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
+            real_arrival = int(arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],"馬番"]==race_proba.iat[0, 0]]["着順"].iat[0])
+            predict_df.loc[race_num+"R"] = [triple_rank, favorite_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival]
         print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
         # データの追加
         with pd.ExcelWriter(excel_path, engine='openpyxl', mode="a", if_sheet_exists="replace") as writer:
@@ -113,14 +122,26 @@ if __name__ == '__main__':
         # 追加したデータの修正
         wb = xl.load_workbook(excel_path)
         ws = wb[sheet_name]
+        ws['A1'] = venue_name
+        ws['A1'].font = Font(bold=True)
+        side = Side(style='thin', color='000000')
+        border = Border(top=side, bottom=side, left=side, right=side)
         for col in ws.columns:
             max_length = 0
             for cell in col:
                 max_length = max(max_length, len(str(cell.value)))
-                if ws[cell.coordinate].value == 'A':
-                    ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ff8c00')
-                if ws[cell.coordinate].value == 'B':
+                ws[cell.coordinate].border = border
+                # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
+                if ws[cell.coordinate].value == 'A' or (cell.coordinate[0] == 'J' and cell.value == 1):
+                    ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffa500')
+                # ランクB及び着順の予想が2着だった時、セルを水色にする
+                if ws[cell.coordinate].value == 'B' or (cell.coordinate[0] == 'J' and cell.value == 2):
                     ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='87ceeb')
+                if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
+                    ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                cell.alignment = Alignment(horizontal = 'center', 
+                                    vertical = 'center',
+                                    wrap_text = False)
             adjusted_width = max_length * 2.08
             ws.column_dimensions[col[0].column_letter].width = adjusted_width
         wb.save(excel_path)
