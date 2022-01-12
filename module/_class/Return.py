@@ -18,6 +18,7 @@ class Return:
     @staticmethod
     def scrape(race_id_list, pre_return_tables=pd.DataFrame()):
         return_tables = {}
+        arrival_tables = {}
         for race_id in tqdm(race_id_list):
             if len(pre_return_tables) and race_id in pre_return_tables.index:
                 continue
@@ -32,10 +33,15 @@ class Return:
                 html = html.replace(b'<br />', b'br')
                 dfs1 = pd.read_html(html, match='単勝')[1]
                 dfs2 = pd.read_html(html, match='三連複')[0]
-                #dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
+                arrival_df = pd.read_html(html, match='単勝')[0].iloc[:,[0,2]]
+                # dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
                 df = pd.concat([dfs1, dfs2])
                 df.index = [race_id] * len(df)
                 return_tables[race_id] = df
+                # 馬番と着順の関係表
+                arrival_df.index = [race_id] * len(arrival_df)
+                arrival_df.columns = ["着順", "馬番"]
+                arrival_tables[race_id] = arrival_df
             except IndexError:
                 continue
             except Exception as e:
@@ -46,11 +52,12 @@ class Return:
 
         #pd.DataFrame型にして一つのデータにまとめる
         return_tables_df = pd.concat([return_tables[key] for key in return_tables])
+        arrival_tables_df = pd.concat([arrival_tables[key] for key in arrival_tables])
         if len(pre_return_tables.index):
             return pd.concat([pre_return_tables, return_tables_df])
         else:
-            return return_tables_df
-    
+            return return_tables_df, arrival_tables_df
+
     @property
     def fukusho(self):
         fukusho = self.return_tables[self.return_tables[0]=='複勝'][[1,2]]
