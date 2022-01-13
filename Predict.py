@@ -17,8 +17,8 @@ from openpyxl.styles import Font
 from openpyxl.styles.alignment import Alignment
 
 if __name__ == '__main__':
-    venue_id_list = ["2022060101", "2022070101"] # race_id_list
-    date = '2022/01/05' # レース日
+    venue_id_list = ["2022060104", "2022070104"] # race_id_list
+    date = '2022/01/10' # レース日
     year = date[0:4]
     month = date[5:7]
     day = date[8:10]
@@ -66,15 +66,19 @@ if __name__ == '__main__':
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue in venue_id_list:
         race_id_list = [venue + str(i).zfill(2) for i in range(1, 13)]
+        # 出馬表のスクレイピング
         st = c.ShutubaTable.scrape(race_id_list=race_id_list, date=date)
         st.preprocessing()
         st.merge_horse_results(hr)
         st.merge_peds(p.peds_e)
         st.process_categorical(r.le_horse, r.le_jockey, r.data_pe)
         print("\n<finish making race card>\n")
-
+        # 払い戻し表のスクレイピング
         today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list)
-
+        rt = c.Return(today_return_tables)
+        tansho_df = rt.tansho
+        fukusho_df = rt.fukusho
+        sanrenpuku_df = rt.sanrenpuku
         # ModelEvaluator
         me = c.ModelEvaluator(lgb_clf, ['_dat/pickle/overall/return_tables.pickle'])
         # X_fact = st.data_c.drop(['date', '体重', '体重変化'], axis=1)
@@ -90,10 +94,11 @@ if __name__ == '__main__':
         pd.options.display.float_format = '{:.4f}'.format
         predict_df = pd.DataFrame(
                                     index = [], 
-                                    columns = ["三連複ランク", "本命馬ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "本命馬着順"]
+                                    columns = ["本命馬ランク", "三連複ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "本命馬着順", "単勝オッズ", "三連複結果", "三連複オッズ"]
                                 )
-        print("<"+venue_name+">")
-        for proba in proba_table.groupby(level=0):
+        # 三連複が的中したかどうか記録する配列
+        sanrenpuku_chk = [0] * len(rt.tansho)
+        for i, proba in enumerate(proba_table.groupby(level=0)):
             if proba[0][-2] == "0":
                 race_num = " "+proba[0][-1]
             else:
@@ -113,38 +118,64 @@ if __name__ == '__main__':
                 favorite_rank = "B"
             else:
                 favorite_rank = "A"
-            real_arrival = int(arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],"馬番"]==race_proba.iat[0, 0]]["着順"].iat[0])
-            predict_df.loc[race_num+"R"] = [triple_rank, favorite_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival]
-        print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
-        # データの追加
+            # 本命馬の着順結果を取得
+            real_arrival = arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],"馬番"]==race_proba.iat[0, 0]]["着順"].iat[0]
+            if real_arrival != "除": real_arrival = int(real_arrival)
+            # 単勝オッズを取得
+            tansho_odds = tansho_df.loc[proba[0], "return"] / 100
+            # 三連複の結果を取得
+            sanrenpuku_results = str(sanrenpuku_df.loc[proba[0], "win_0"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_1"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_2"])
+            # 三連複のオッズを取得
+            sanrenpuku_odds = sanrenpuku_df.loc[proba[0], "return"] / 100
+            # データをdfに追加
+            predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival, tansho_odds, sanrenpuku_results, sanrenpuku_odds]
+            # 三連複が的中したかどうか記録
+            sanrenpuku_results_list = list(map(int, sanrenpuku_df.loc[proba[0], "win_0":"win_2"]))
+            sanrenpuku_predict_list = [race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
+            sanrenpuku_predict_list = list(map(int, sanrenpuku_predict_list))
+            for result in sanrenpuku_results_list:
+                if result in sanrenpuku_predict_list:
+                    sanrenpuku_chk[i] += 1
+        sanrenpuku_chk = [0, *sanrenpuku_chk]
+        # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
+        if today <= race_date:
+            print("<"+venue_name+">")
+            print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
+        # データをxlsxファイルに書き込む
         with pd.ExcelWriter(excel_path, engine='openpyxl', mode="a", if_sheet_exists="replace") as writer:
             predict_df.to_excel(writer, sheet_name=day+"日"+venue_name)
         # 追加したデータの修正
         wb = xl.load_workbook(excel_path)
         ws = wb[sheet_name]
+        # 表の左上に開催地の追加
         ws['A1'] = venue_name
         ws['A1'].font = Font(bold=True)
-        side = Side(style='thin', color='000000')
-        border = Border(top=side, bottom=side, left=side, right=side)
+        side1 = Side(style='thin', color='000000')
+        side2 = Side(style='double', color='000000')
+        border1 = Border(top=side1, bottom=side1, left=side1, right=side1)
+        border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
         for col in ws.columns:
             max_length = 0
-            for cell in col:
+            for i, cell in enumerate(col):
                 max_length = max(max_length, len(str(cell.value)))
-                ws[cell.coordinate].border = border
+                if cell.coordinate[0] == 'I': ws[cell.coordinate].border = border2
+                else: ws[cell.coordinate].border = border1
                 # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
-                if ws[cell.coordinate].value == 'A' or (cell.coordinate[0] == 'J' and cell.value == 1):
+                if ws[cell.coordinate].value == 'A' or (cell.coordinate[0] == 'J' and cell.value == 1) or (cell.coordinate[0] == 'L' and sanrenpuku_chk[i] == 3):
                     ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffa500')
-                # ランクB及び着順の予想が2着だった時、セルを水色にする
-                if ws[cell.coordinate].value == 'B' or (cell.coordinate[0] == 'J' and cell.value == 2):
+                # ランクB及び着順の予想が3着以内及び三連複の3頭中2頭的中した時、セルを水色にする
+                if ws[cell.coordinate].value == 'B' or (cell.coordinate[0] == 'J' and (cell.value == 2 or cell.value == 3)) or (cell.coordinate[0] == 'L' and sanrenpuku_chk[i] == 2):
                     ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='87ceeb')
-                if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
+                # ランクC及び及び三連複の3頭中1頭のみ的中した時、セルを水色にする
+                if ws[cell.coordinate].value == 'C' or (cell.coordinate[0] == 'L' and sanrenpuku_chk[i] == 1):
                     ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
+                    ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
+                    ws[cell.coordinate].font = Font(color="ffffff")
                 cell.alignment = Alignment(horizontal = 'center', 
                                     vertical = 'center',
                                     wrap_text = False)
             adjusted_width = max_length * 2.08
             ws.column_dimensions[col[0].column_letter].width = adjusted_width
         wb.save(excel_path)
-
-
-    print(me.feature_importance(X))
+    # print(me.feature_importance(X))
