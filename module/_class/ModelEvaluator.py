@@ -47,8 +47,7 @@ class ModelEvaluator:
         return roc_auc_score(y_true, self.predict_proba(X))
     
     def feature_importance(self, X, n_display=20):
-        importances = pd.DataFrame({"features": X.columns, 
-                                    "importance": self.model.feature_importances_})
+        importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importances_})
         return importances.sort_values("importance", ascending=False)[:n_display]
     
     def pred_table(self, X, threshold=0.5, bet_only=True):
@@ -63,33 +62,27 @@ class ModelEvaluator:
     def bet(self, race_id, kind, umaban, amount):
         if kind == 'fukusho':
             rt_1R = self.fukusho.loc[race_id]
-            return_ = (rt_1R[['win_0', 'win_1', 'win_2']]==umaban).values * \
-                rt_1R[['return_0', 'return_1', 'return_2']].values * amount/100
+            return_ = (rt_1R[['win_0', 'win_1', 'win_2']]==umaban).values * rt_1R[['return_0', 'return_1', 'return_2']].values * amount/100
             return_ = np.sum(return_)
         if kind == 'tansho':
             rt_1R = self.tansho.loc[race_id]
             return_ = (rt_1R['win']==umaban) * rt_1R['return'] * amount/100
         if kind == 'umaren':
             rt_1R = self.umaren.loc[race_id]
-            return_ = (set(rt_1R[['win_0', 'win_1']]) == set(umaban)) \
-                * rt_1R['return']/100 * amount
+            return_ = (set(rt_1R[['win_0', 'win_1']]) == set(umaban)) * rt_1R['return']/100 * amount
         if kind == 'umatan':
             rt_1R = self.umatan.loc[race_id]
-            return_ = (list(rt_1R[['win_0', 'win_1']]) == list(umaban))\
-                * rt_1R['return']/100 * amount
+            return_ = (list(rt_1R[['win_0', 'win_1']]) == list(umaban)) * rt_1R['return']/100 * amount
         if kind == 'wide':
             rt_1R = self.wide.loc[race_id]
-            return_ = (rt_1R[['win_0', 'win_1']].apply(lambda x: set(x)==set(umaban), axis=1)) \
-                * rt_1R['return']/100 * amount
+            return_ = (rt_1R[['win_0', 'win_1']].apply(lambda x: set(x)==set(umaban), axis=1)) * rt_1R['return']/100 * amount
             return_ = return_.sum()
         if kind == 'sanrentan':
             rt_1R = self.sanrentan.loc[race_id]
-            return_ = (list(rt_1R[['win_0', 'win_1', 'win_2']]) == list(umaban)) * \
-                rt_1R['return']/100 * amount
+            return_ = (list(rt_1R[['win_0', 'win_1', 'win_2']]) == list(umaban)) * rt_1R['return']/100 * amount
         if kind == 'sanrenpuku':
             rt_1R = self.sanrenpuku.loc[race_id]
-            return_ = (set(rt_1R[['win_0', 'win_1', 'win_2']]) == set(umaban)) \
-                * rt_1R['return']/100 * amount
+            return_ = (set(rt_1R[['win_0', 'win_1', 'win_2']]) == set(umaban)) * rt_1R['return']/100 * amount
         if not (return_ >= 0):
                 return_ = amount
         return return_
@@ -131,9 +124,7 @@ class ModelEvaluator:
         
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
-            return_list.append(
-                np.sum(preds.apply(lambda x: self.bet(
-                    race_id, 'tansho', x['馬番'], 1/x['単勝']), axis=1)))
+            return_list.append(np.sum(preds.apply(lambda x: self.bet(race_id, 'tansho', x['馬番'], 1/x['単勝']), axis=1)))
         
         bet_money = (1 / pred_table['単勝']).sum()
         
@@ -262,10 +253,7 @@ class ModelEvaluator:
             if len(preds_jiku) == 1:
                 preds_aite = preds.sort_values('score', ascending = False)\
                     .iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(
-                    lambda x: self.bet(
-                        race_id, 'umaren', [preds_jiku['馬番'].values[0], x], 1
-                    )
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umaren', [preds_jiku['馬番'].values[0], x], 1)
                 ).sum()
                 n_bets += n_aite
                 return_list.append(return_)
@@ -290,13 +278,8 @@ class ModelEvaluator:
             return_ = 0
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
-                preds_aite = preds.sort_values('score', ascending = False)\
-                    .iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(
-                    lambda x: self.bet(
-                        race_id, 'umatan', [preds_jiku['馬番'].values[0], x], 1
-                    )
-                ).sum()
+                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['馬番']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umatan', [preds_jiku['馬番'].values[0], x], 1)).sum()
                 n_bets += n_aite
                 
             elif len(preds_jiku) >= 2:
@@ -320,13 +303,8 @@ class ModelEvaluator:
             return_ = 0
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
-                preds_aite = preds.sort_values('score', ascending = False)\
-                    .iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(
-                    lambda x: self.bet(
-                        race_id, 'wide', [preds_jiku['馬番'].values[0], x], 1
-                    )
-                ).sum()
+                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['馬番']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'wide', [preds_jiku['馬番'].values[0], x], 1)).sum()
                 n_bets += len(preds_aite)
                 return_list.append(return_)
             elif len(preds_jiku) >= 2:
@@ -341,23 +319,19 @@ class ModelEvaluator:
         return_rate = np.sum(return_list) / n_bets
         return n_bets, return_rate, n_hits, std
     
+    # 1着, 2着固定の三連単フォーメーション
     def sanrentan_nagashi(self, X, threshold = 1.5, n_aite=7):
         pred_table = self.pred_table(X, threshold, bet_only = False).sort_values('score')
         n_bets = 0
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
+            # pred == 1: thresholdの結果、購入すべきと判断された馬番
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
                 continue
             elif len(preds_jiku) == 2:
                 preds_aite = preds.sort_values('score', ascending = False).iloc[2:(n_aite+2)]['馬番']
-                return_ = preds_aite.map(
-                    lambda x: self.bet(
-                        race_id, 'sanrentan',
-                        np.append(preds_jiku['馬番'].values, x),
-                        1
-                    )
-                ).sum()
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'sanrentan',np.append(preds_jiku['馬番'].values, x),1)).sum()
                 n_bets += len(preds_aite)
                 return_list.append(return_)
             elif len(preds_jiku) >= 3:
