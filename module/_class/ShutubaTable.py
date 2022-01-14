@@ -67,13 +67,6 @@ class ShutubaTable(DataProcessor):
         
         df["性"] = df["性齢"].map(lambda x: str(x)[0])
         df["年齢"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
-
-        # # 馬体重を体重と体重変化に分ける
-        # df = df[df["馬体重(増減)"] != '--']
-        # df["体重"] = df["馬体重(増減)"].str.split("(", expand=True)[0].astype(int)
-        # df["体重変化"] = df["馬体重(増減)"].str.split("(", expand=True)[1].str[:-1]
-        # # 2020/12/13追加：増減が「前計不」などのとき欠損値にする
-        # df['体重変化'] = pd.to_numeric(df['体重変化'], errors='coerce')
         
         df["date"] = pd.to_datetime(df["date"])
         
