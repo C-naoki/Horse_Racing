@@ -119,14 +119,6 @@ class Results(DataProcessor):
         df["性"] = df["性齢"].map(lambda x: str(x)[0])
         df["年齢"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
 
-        # 馬体重を体重と体重変化に分ける
-        df["体重"] = df["馬体重"].str.split("(", expand=True)[0]
-        df["体重変化"] = df["馬体重"].str.split("(", expand=True)[1].str[:-1]
-	
-        #errors='coerce'で、"計不"など変換できない時に欠損値にする
-        df['体重'] = pd.to_numeric(df['体重'], errors='coerce')
-        df['体重変化'] = pd.to_numeric(df['体重変化'], errors='coerce')
-
         # 単勝をfloatに変換
         df["単勝"] = df["単勝"].astype(float)
         # 距離は10の位を切り捨てる

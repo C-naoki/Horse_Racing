@@ -43,8 +43,7 @@ if __name__ == '__main__':
     r.process_categorical()
     print("\n<finish making race results>\n")
 
-    X = r.data_c.drop(['rank', 'date', '単勝', '体重', '体重変化'], axis=1)
-    # X = rr.data_c.drop(['rank', 'date', '単勝'], axis=1)
+    X = r.data_c.drop(['rank', 'date', '単勝'], axis=1)
     y = r.data_c['rank']
 
     params={'objective': 'binary',
@@ -81,7 +80,6 @@ if __name__ == '__main__':
         sanrenpuku_df = rt.sanrenpuku
         # ModelEvaluator
         me = c.ModelEvaluator(lgb_clf, ['_dat/pickle/overall/return_tables.pickle'])
-        # X_fact = st.data_c.drop(['date', '体重', '体重変化'], axis=1)
         X_fact = st.data_c.drop(['date'], axis=1)
 
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
@@ -144,7 +142,8 @@ if __name__ == '__main__':
             predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival, tansho_odds, sanrenpuku_results, sanrenpuku_odds, tansho_money, sanrenpuku_money]
         sanrenpuku_chk = [0, *sanrenpuku_chk]
         # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
-        if today <= race_date:
+        # if today <= race_date:
+        if race_date >= today:
             print("<"+venue_name+">")
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
         else:
@@ -186,4 +185,4 @@ if __name__ == '__main__':
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
             wb.save(excel_path)
     # 出力結果が得られた要因
-    # print(me.feature_importance(X))
+    print(me.feature_importance(X))
