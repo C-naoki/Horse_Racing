@@ -13,8 +13,11 @@ class ShutubaTable(DataProcessor):
     
     @classmethod
     def scrape(cls, race_id_list, date):
+        pbar = tqdm(total=len(race_id_list))
         data = pd.DataFrame()
-        for race_id in tqdm(race_id_list):
+        for race_id in race_id_list:
+            pbar.update(1)
+            pbar.set_description("scrape shutuba table")
             time.sleep(1)
             url = 'https://race.netkeiba.com/race/shutuba.html?race_id=' + race_id
             df = pd.read_html(url)[0]
