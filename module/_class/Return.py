@@ -22,7 +22,7 @@ class Return:
         pbar = tqdm(total=len(race_id_list))
         for race_id in race_id_list:
             pbar.update(1)
-            pbar.set_description("scrape return table")
+            pbar.set_description("scrape  return table")
             if len(pre_return_tables) and race_id in pre_return_tables.index:
                 continue
             time.sleep(1)
