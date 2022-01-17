@@ -37,7 +37,9 @@ class Results(DataProcessor):
 
         #race_idをkeyにしてDataFrame型を格納
         race_results = {}
+        pbar = range(len(race_id_list))
         for race_id in tqdm(race_id_list):
+            pbar.set_description("Getting Race data")
             if len(pre_race_results) and race_id in pre_race_results.index:
                 continue
             time.sleep(1)
@@ -125,8 +127,7 @@ class Results(DataProcessor):
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 不要な列を削除
-        df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順'],
-                axis=1, inplace=True)
+        df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順'], axis=1, inplace=True)
 
         df["date"] = pd.to_datetime(df["date"], format="%Y年%m月%d日")
         
