@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import module as m
 import module._class as c
 import _dat
@@ -27,7 +31,7 @@ if __name__ == '__main__':
     today = datetime.date(dt_now.year, dt_now.month, dt_now.day)
     if month[0] == '0': month = month[1]
     if day[0] == '0': day = day[1]
-    excel_path = 'results/'+year+'/xlsx/'+month+'月.xlsx'
+    excel_path = '../results/'+year+'/xlsx/'+month+'月.xlsx'
     # race_dataの取得
     r = c.Results(_dat.race_results)
     # 前処理
@@ -73,7 +77,7 @@ if __name__ == '__main__':
         st.process_categorical(r.le_horse, r.le_jockey, r.data_pe)
         print("\n<finish making race card>\n")
         # ModelEvaluator
-        me = c.ModelEvaluator(lgb_clf, ['_dat/pickle/overall/return_tables.pickle'])
+        me = c.ModelEvaluator(lgb_clf, ['../_dat/pickle/overall/return_tables.pickle'])
         X_fact = st.data_c.drop(['date'], axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
         venue_name = [k for k, v in place_dict.items() if v == race_id_list[0][4:6]][0]
