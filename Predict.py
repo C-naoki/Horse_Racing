@@ -17,8 +17,8 @@ from openpyxl.styles import Font
 from openpyxl.styles.alignment import Alignment
 
 if __name__ == '__main__':
-    venue_id_list = ["2022060103", "2022070103"] # race_id_list
-    date = '2022/01/09' # レース日
+    venue_id_list = ["2022060106", "2022070106", "2022100102"] # race_id_list
+    date = '2022/01/16' # レース日
     year = date[0:4]
     month = date[5:7]
     day = date[8:10]
@@ -27,8 +27,8 @@ if __name__ == '__main__':
     today = datetime.date(dt_now.year, dt_now.month, dt_now.day)
     if month[0] == '0': month = month[1]
     if day[0] == '0': day = day[1]
-    excel_path = 'results/'+year+'/'+month+'月.xlsx'
-
+    excel_path = 'results/'+year+'/xlsx/'+month+'月.xlsx'
+    # race_dataの取得
     r = c.Results(_dat.race_results)
     # 前処理
     r.preprocessing()
@@ -72,30 +72,37 @@ if __name__ == '__main__':
         st.merge_peds(p.peds_e)
         st.process_categorical(r.le_horse, r.le_jockey, r.data_pe)
         print("\n<finish making race card>\n")
-        # 払い戻し表のスクレイピング
-        today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list)
-        rt = c.Return(today_return_tables)
-        tansho_df = rt.tansho
-        fukusho_df = rt.fukusho
-        sanrenpuku_df = rt.sanrenpuku
         # ModelEvaluator
         me = c.ModelEvaluator(lgb_clf, ['_dat/pickle/overall/return_tables.pickle'])
         X_fact = st.data_c.drop(['date'], axis=1)
-
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
         venue_name = [k for k, v in place_dict.items() if v == race_id_list[0][4:6]][0]
         sheet_name = day+"日"+venue_name
         pred = me.predict_proba(X_fact, train=False)
-        proba_table = st.data_c[['馬番']].copy()
-        proba_table['score'] = pred
+        proba_table = st.data_c[['馬番']].astype('int').copy()
+        proba_table['score'] = pred.astype('float64')
         print("\n~Expected results~")
         pd.options.display.float_format = '{:.4f}'.format
-        predict_df = pd.DataFrame(
+        # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
+        try:
+            return_chk = 1
+            today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list)
+            rt = c.Return(today_return_tables)
+            tansho_df = rt.tansho
+            fukusho_df = rt.fukusho
+            sanrenpuku_df = rt.sanrenpuku
+            predict_df = pd.DataFrame(
+                                        index = [], 
+                                        columns = ["本命馬ランク", "三連複ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "本命馬着順", "単勝オッズ", "三連複結果", "三連複オッズ", "単勝回収金額", "三連複回収金額"]
+                                    )
+        except:
+            return_chk = 0
+            predict_df = pd.DataFrame(
                                     index = [], 
-                                    columns = ["本命馬ランク", "三連複ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "本命馬着順", "単勝オッズ", "三連複結果", "三連複オッズ", "単勝回収金額", "三連複回収金額"]
+                                    columns = ["本命馬ランク", "三連複ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△"]
                                 )
         # 三連複が的中したかどうか記録する配列
-        sanrenpuku_chk = [0] * len(rt.tansho)
+        sanrenpuku_chk = [0] * len(set(st.data_c.index))
         for i, proba in enumerate(proba_table.groupby(level=0)):
             if proba[0][-2] == "0":
                 race_num = " "+proba[0][-1]
@@ -103,9 +110,9 @@ if __name__ == '__main__':
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
             # 三連複のランクの決定
-            if race_proba.iat[5, 1] < 0:
+            if race_proba.iat[min(5, len(race_proba)-1), 1] < 0:
                 triple_rank = "C"
-            elif race_proba.iat[5, 1] < 0.5:
+            elif race_proba.iat[min(5, len(race_proba)-1), 1] < 0.5:
                 triple_rank = "B"
             else:
                 triple_rank = "A"
@@ -116,37 +123,40 @@ if __name__ == '__main__':
                 favorite_rank = "B"
             else:
                 favorite_rank = "A"
-            # 本命馬の着順結果を取得
-            real_arrival = arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],"馬番"]==race_proba.iat[0, 0]]["着順"].iat[0]
-            if real_arrival != "除": real_arrival = int(real_arrival)
-            # 単勝オッズを取得
-            tansho_odds = tansho_df.loc[proba[0], "return"] / 100
-            # 単勝回収率の計算
-            if real_arrival == 1: tansho_money = tansho_df.loc[proba[0], "return"]
-            else: tansho_money = 0
-            # 三連複の結果を取得
-            sanrenpuku_results = str(sanrenpuku_df.loc[proba[0], "win_0"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_1"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_2"])
-            # 三連複のオッズを取得
-            sanrenpuku_odds = sanrenpuku_df.loc[proba[0], "return"] / 100
-            # 三連複が的中したかどうか記録
-            sanrenpuku_results_list = list(map(int, sanrenpuku_df.loc[proba[0], "win_0":"win_2"]))
-            sanrenpuku_predict_list = [race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
-            sanrenpuku_predict_list = list(map(int, sanrenpuku_predict_list))
-            for result in sanrenpuku_results_list:
-                if result in sanrenpuku_predict_list:
-                    sanrenpuku_chk[i] += 1
-            # 三連複の回収率の計算
-            if sanrenpuku_chk[i] == 3: sanrenpuku_money = sanrenpuku_df.loc[proba[0], "return"]
-            else: sanrenpuku_money = 0
-            # データをdfに追加
-            predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival, tansho_odds, sanrenpuku_results, sanrenpuku_odds, tansho_money, sanrenpuku_money]
+            # race_id_listの長さが6に満たない場合、"-"で埋める
+            s = pd.Series(['-', '-'], index=race_proba.columns, name=race_proba.index[0])
+            for j in range(6-len(race_proba)):
+                race_proba=race_proba.append(s)
+            if return_chk:
+                # 本命馬の着順結果を取得
+                real_arrival = arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],"馬番"]==race_proba.iat[0, 0]]["着順"].iat[0]
+                if real_arrival != "除": real_arrival = int(real_arrival)
+                # 単勝オッズを取得
+                tansho_odds = tansho_df.loc[proba[0], "return"] / 100
+                # 単勝回収率の計算
+                if real_arrival == 1: tansho_money = tansho_df.loc[proba[0], "return"]
+                else: tansho_money = 0
+                # 三連複の結果を取得
+                sanrenpuku_results = str(sanrenpuku_df.loc[proba[0], "win_0"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_1"])+" - "+str(sanrenpuku_df.loc[proba[0], "win_2"])
+                # 三連複のオッズを取得
+                sanrenpuku_odds = sanrenpuku_df.loc[proba[0], "return"] / 100
+                # 三連複が的中したかどうか記録
+                sanrenpuku_results_list = list(map(int, sanrenpuku_df.loc[proba[0], "win_0":"win_2"]))
+                sanrenpuku_predict_list = [race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
+                for result in sanrenpuku_results_list:
+                    if result in sanrenpuku_predict_list:
+                        sanrenpuku_chk[i] += 1
+                # 三連複の回収率の計算
+                if sanrenpuku_chk[i] == 3: sanrenpuku_money = sanrenpuku_df.loc[proba[0], "return"]
+                else: sanrenpuku_money = 0
+                # データをdfに追加
+                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], real_arrival, tansho_odds, sanrenpuku_results, sanrenpuku_odds, tansho_money, sanrenpuku_money]
+            else:
+                # データをdfに追加
+                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
         sanrenpuku_chk = [0, *sanrenpuku_chk]
         # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
-        # if today <= race_date:
-        if race_date >= today:
-            print("<"+venue_name+">")
-            print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
-        else:
+        if return_chk:
             # データをxlsxファイルに書き込む
             with pd.ExcelWriter(excel_path, engine='openpyxl', mode="a", if_sheet_exists="replace") as writer:
                 predict_df.to_excel(writer, sheet_name=day+"日"+venue_name)
@@ -184,5 +194,8 @@ if __name__ == '__main__':
                 adjusted_width = max_length * 2.08
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
             wb.save(excel_path)
+        else:
+            print("<"+venue_name+">")
+            print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
     # 出力結果が得られた要因
     print(me.feature_importance(X))
