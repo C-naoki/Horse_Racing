@@ -152,5 +152,11 @@ class HorseResults:
     
     def merge_all(self, results, n_samples='all'):
         date_list = results['date'].unique()
-        merged_df = pd.concat([self.merge(results, date, n_samples) for date in tqdm(date_list)])
+        temp_list = list()
+        pbar = tqdm(total=len(date_list))
+        for date in date_list:
+            pbar.update(1)
+            pbar.set_description("merge {} data".format(str(n_samples)+(" "*(3-len(str(n_samples))))))
+            temp_list.append(self.merge(results, date, n_samples))
+        merged_df = pd.concat(temp_list)
         return merged_df
