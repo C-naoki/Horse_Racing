@@ -59,9 +59,8 @@ if __name__ == '__main__':
     # "https://db.netkeiba.com/race/" + race_id (データベース)
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue_id in venue_id_list:
-        race_id_list = [venue_id + str(i).zfill(2) for i in range(1, 13)]
         # 出馬表のスクレイピング
-        st = c.ShutubaTable.scrape(race_id_list=race_id_list, date=date)
+        st = c.ShutubaTable.scrape(race_id_list=race_id_list[venue_id], date=date)
         st.preprocessing()
         st.merge_horse_results(hr)
         st.merge_peds(p.peds_e)
@@ -69,9 +68,6 @@ if __name__ == '__main__':
         # ModelEvaluator
         me = c.ModelEvaluator(lgb_clf, tables_path, kind=1)
         X_fact = st.data_c.drop(['date'], axis=1)
-        # 開催地名と記入するシート名
-        venue_name = [k for k, v in place_dict.items() if v == race_id_list[0][4:6]][0]
-        sheet_name = day+"日"+venue_name
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
         pred = me.predict_proba(X_fact, train=False)
         proba_table = st.data_c[['馬番']].astype('int').copy()
@@ -80,7 +76,7 @@ if __name__ == '__main__':
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
             return_chk = 1
-            today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list)
+            today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list[venue_id])
             rt = c.Return(today_return_tables)
             tansho_df = rt.tansho
             fukusho_df = rt.fukusho
@@ -166,12 +162,12 @@ if __name__ == '__main__':
         if return_chk:
             # データをxlsxファイルに書き込む
             with pd.ExcelWriter(excel_path, engine='openpyxl', mode="a", if_sheet_exists="replace") as writer:
-                predict_df.to_excel(writer, sheet_name=sheet_name)
+                predict_df.to_excel(writer, sheet_name=sheet_name[venue_id])
             # 追加したデータの修正
             wb = xl.load_workbook(excel_path)
-            ws = wb[sheet_name]
+            ws = wb[sheet_name[venue_id]]
             # 表の左上に開催地の追加
-            ws['A1'] = venue_name
+            ws['A1'] = venue_name[venue_id]
             ws['A1'].font = Font(bold=True)
             side1 = Side(style='thin', color='000000')
             side2 = Side(style='double', color='000000')
@@ -211,8 +207,12 @@ if __name__ == '__main__':
                         elif score > 1.5:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
             wb.save(excel_path)
+            # xlsxをpdfに変換し、pdfディレクトリに保存する
+            m.xlsx2pdf(pdf_path[venue_id], ws)
+            # pdfをpngに変換し、pngディレクトリに保存する
+            m.pdf2png(pdf_path[venue_id])
         else:
-            print("<"+venue_name+">")
+            print("<"+venue_name[venue_id]+">")
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
     # 出力結果が得られた要因
     print(me.feature_importance(X))

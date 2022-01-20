@@ -2,6 +2,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+from openpyxl.styles import PatternFill
+from openpyxl.utils import column_index_from_string
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.pagesizes import mm
+from reportlab.lib import colors
+from pathlib import Path
+from pdf2image import convert_from_path
+
 def update_data(old, new):
     """
     Parameters:
@@ -46,5 +57,50 @@ def plot(df, label=' '):
     plt.legend() #labelで設定した凡例を表示させる
     plt.grid(True) #グリッドをつける
 
-def hello():
-    print("hello")
+def xlsx2pdf(pdf_file, ws):
+    doc = SimpleDocTemplate( pdf_file, pagesize=(475*mm, 150*mm) )
+    pdfmetrics.registerFont(TTFont('meiryo', '/Users/naoki/Downloads/font/meiryo/meiryo.ttc'))
+    pdf_data = []
+    data = []
+    # Tableの作成
+    for row in ws.rows:
+        row_list = []
+        for cell in row:
+            row_list.append(cell.value)
+        data.append(row_list)
+    tt = Table(data)
+    # 着色
+    for row in ws.rows:
+        for cell in row:
+            cell_idx = (column_index_from_string(cell.coordinate[0])-1, int(cell.coordinate[1:])-1)
+            if ws[cell.coordinate].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                tt.setStyle(TableStyle([
+                                ('BACKGROUND',cell_idx,cell_idx,colors.lightsalmon),
+                                ]))
+            elif ws[cell.coordinate].fill == PatternFill(patternType='solid', fgColor='a8d3ff'):
+                tt.setStyle(TableStyle([
+                                ('BACKGROUND',cell_idx,cell_idx,colors.lightblue),
+                                ]))
+            elif ws[cell.coordinate].fill == PatternFill(patternType='solid', fgColor='d3d3d3'):
+                tt.setStyle(TableStyle([
+                                ('BACKGROUND',cell_idx,cell_idx,colors.lightgrey),
+                                ]))
+    tt.setStyle(TableStyle([
+                                ('BACKGROUND',(0, 0),(-1, 0),colors.black),
+                                ('TEXTCOLOR',(0, 0),(-1, 0),colors.white),
+                                ('BACKGROUND',(0, 0),(0, -1),colors.black),
+                                ('TEXTCOLOR',(0, 0),(0, -1),colors.white),
+                                ('FONT', (0, 0), (-1, -1), "meiryo", 11),
+                                ('GRID', (0, 0), (ws.max_column, ws.max_row), 0.25, colors.black),
+                                ('VALIGN', (0, 0), (-1, -1), "MIDDLE"),
+                                ('ALIGN', (0, 0), (-1, -1), "CENTER")
+                                ]))
+    pdf_data.append(tt)
+    doc.build(pdf_data)
+
+def pdf2png(pdf_path, dpi=200, fmt='png'):
+    png_path = pdf_path.replace('pdf', 'png')
+    pdf_path = Path(pdf_path)
+    png_path = Path(png_path)
+    page = convert_from_path(pdf_path, dpi)
+    page[0].save(png_path, fmt)

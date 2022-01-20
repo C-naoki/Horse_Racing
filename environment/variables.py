@@ -18,6 +18,18 @@ month = date[5:7]
 if month[0] == '0': month = month[1]
 day = date[8:10]
 if day[0] == '0': day = day[1]
+# venue_id_listからrace_id_listを作成
+race_id_list = {}
+venue_name = {}
+sheet_name = {}
+pdf_path = {}
+for venue_id in venue_id_list:
+    race_id_list[venue_id] = [venue_id + str(i).zfill(2) for i in range(1, 13)]
+    # 開催地名と記入するシート名
+    venue_name[venue_id] = [k for k, v in place_dict.items() if v == race_id_list[venue_id][0][4:6]][0]
+    sheet_name[venue_id] = day+"日"+venue_name[venue_id]
+    # pdfファイルを保存したいpath
+    pdf_path[venue_id] = '../results/'+year+'/pdf/'+month+'月/'+sheet_name[venue_id]+'.pdf'
 
 # xlsxファイルを保存したいpath
 excel_path = '../results/'+year+'/xlsx/'+month+'月.xlsx'
