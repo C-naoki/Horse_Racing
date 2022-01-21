@@ -20,6 +20,7 @@ from openpyxl.styles import PatternFill
 from openpyxl.styles.borders import Border, Side
 from openpyxl.styles import Font
 from openpyxl.styles.alignment import Alignment
+from openpyxl.utils import column_index_from_string
 
 if __name__ == '__main__':
     # race_dataの取得
@@ -72,7 +73,6 @@ if __name__ == '__main__':
         pred = me.predict_proba(X_fact, train=False)
         proba_table = st.data_c[['馬番']].astype('int').copy()
         proba_table['score'] = pred.astype('float64')
-        pd.options.display.float_format = '{:.4f}'.format
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
             return_chk = 1
@@ -85,6 +85,10 @@ if __name__ == '__main__':
             predict_df = pd.DataFrame(
                                         index = [], 
                                         columns = predict_columns + result_columns
+                                    )
+            return_df = pd.DataFrame(
+                                        index = [], 
+                                        columns = return_columns
                                     )
         except:
             return_chk = 0
@@ -133,10 +137,10 @@ if __name__ == '__main__':
                 # 単勝オッズを取得
                 tansho_odds = tansho_df.loc[proba[0], "return"] / 100
                 # 単勝回収率の計算
-                if int(real_arrival[0]) == 1: tansho_money = tansho_df.loc[proba[0], "return"]
+                if real_arrival[0] == "1": tansho_money = tansho_df.loc[proba[0], "return"]
                 else: tansho_money = 0
                 # 三連単の結果を取得
-                sanrentan_results = str(sanrentan_df.loc[proba[0], "win_0"])+" → "+str(sanrentan_df.loc[proba[0], "win_1"])+" → "+str(sanrentan_df.loc[proba[0], "win_2"])
+                sanrentan_results = str(int(sanrentan_df.loc[proba[0], "win_0"]))+" → "+str(int(sanrentan_df.loc[proba[0], "win_1"]))+" → "+str(int(sanrentan_df.loc[proba[0], "win_2"]))
                 # 三連単のオッズを取得
                 sanrentan_odds = sanrentan_df.loc[proba[0], "return"] / 100
                 # 三連複のオッズを取得
@@ -158,11 +162,12 @@ if __name__ == '__main__':
             else:
                 # データをdfに追加
                 predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
-        # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
+
         if return_chk:
-            # データをxlsxファイルに書き込む
-            with pd.ExcelWriter(excel_path, engine='openpyxl', mode="a", if_sheet_exists="replace") as writer:
-                predict_df.to_excel(writer, sheet_name=sheet_name[venue_id])
+            # 予測及びオッズデータをxlsxファイルに書き込む
+            writer = pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', if_sheet_exists='replace')
+            predict_df.to_excel(writer, sheet_name=sheet_name[venue_id])
+            writer.save()
             # 追加したデータの修正
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
@@ -174,9 +179,7 @@ if __name__ == '__main__':
             border1 = Border(top=side1, bottom=side1, left=side1, right=side1)
             border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
             for col in ws.columns:
-                max_length = 0
                 for i, cell in enumerate(col):
-                    max_length = max(max_length, len(str(cell.value)))
                     if cell.coordinate[0] == 'I' or cell.coordinate[0] == 'C': ws[cell.coordinate].border = border2 # 二重線の記入
                     else: ws[cell.coordinate].border = border1 # 線の記入
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
@@ -191,12 +194,6 @@ if __name__ == '__main__':
                     if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
                         ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[cell.coordinate].font = Font(color="ffffff")
-                    # 文字を中心に配置する
-                    cell.alignment = Alignment(horizontal = 'center', 
-                                        vertical = 'center',
-                                        wrap_text = False)
-                adjusted_width = max_length * 2.08
-                ws.column_dimensions[col[0].column_letter].width = adjusted_width
             for row in ws.rows:
                 if 1 < int(row[0].coordinate[1:]) < 14:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)["score"].head(6)):
@@ -207,12 +204,112 @@ if __name__ == '__main__':
                         elif score > 1.5:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
             wb.save(excel_path)
+            wb.close()
+
+            # return_dfの作成
+            all_win = np.zeros(4, dtype = int)
+            all_sanrenpuku_win = 0
+            all_sanrentan_win = 0
+            all_tansho_cnt = 0
+            all_sanren_cnt = 0
+            all_tansho_money = 0
+            all_sanrentan_money = 0
+            all_sanrenpuku_money = 0
+            for idx in ["A", "B", "C"]:
+                tansho_win = np.zeros(4, dtype = int) # 勝ち馬を予測できた数
+                tansho_cnt = 0 # ランク毎の馬の数
+                tansho_money = 0 # 単勝の回収率
+                sanrenpuku_win = 0
+                sanren_cnt = 0
+                sanrenpuku_money = 0
+                sanrentan_win = 0
+                sanrentan_money = 0
+                wb = xl.load_workbook(excel_path)
+                ws = wb[sheet_name[venue_id]]
+                for i in range(ws.max_row):
+                    # True: 本命馬ランクがidxと一致
+                    if ws['B{}'.format(i+1)].value == idx:
+                        tansho_cnt += 1
+                        # True: 単勝予測成功
+                        if ws['D{}'.format(i+1)].value[-3:] == "(1)":
+                            tansho_win[0] += 1
+                            tansho_money += ws['N{}'.format(i+1)].value
+                        elif ws['D{}'.format(i+1)].value[-3:] == "(2)":
+                            tansho_win[1] += 1
+                        elif ws['D{}'.format(i+1)].value[-3:] == "(3)":
+                            tansho_win[2] += 1
+                        else:
+                            tansho_win[3] += 1
+                    # True: 三連複ランクがidxと一致
+                    if ws['C{}'.format(i+1)].value == idx:
+                        sanren_cnt += 1
+                        # True: 三連複予測成功
+                        if ws['M{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                            sanrenpuku_win += 1
+                            sanrenpuku_money += ws['P{}'.format(i+1)].value
+                        # True: 三連単予測成功
+                        if ws['L{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                            sanrentan_win += 1
+                            sanrentan_money += ws['O{}'.format(i+1)].value
+                            print(ws['O{}'.format(i+1)].value)
+                return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), '{}%'.format(round(m.div(tansho_money, tansho_cnt), 1)), '{}%'.format(round(m.div(sanrentan_money, 20*sanren_cnt), 1)), '{}%'.format(round(m.div(sanrenpuku_money, 20*sanren_cnt), 1))]
+                all_win += tansho_win
+                all_sanrentan_win += sanrentan_win
+                all_sanrenpuku_win += sanrenpuku_win
+                all_tansho_cnt += tansho_cnt
+                all_sanren_cnt += sanren_cnt
+                all_tansho_money += tansho_money
+                all_sanrentan_money += sanrentan_money
+                all_sanrenpuku_money += sanrenpuku_money
+                wb.save(excel_path)
+                wb.close()
+                
+            return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), '{}%'.format(round(m.div(all_tansho_money, all_tansho_cnt), 1)), '{}%'.format(round(m.div(all_sanrentan_money, 20*all_sanren_cnt), 1)), '{}%'.format(round(m.div(all_sanrenpuku_money, 20*all_sanren_cnt), 1))]
+            # return_dfの追記
+            wb = xl.load_workbook(excel_path)
+            ws = wb[sheet_name[venue_id]]
+            writer = pd.ExcelWriter(excel_path, engine='openpyxl')
+            writer.book = wb
+            writer.sheets = {ws.title: ws for ws in wb.worksheets}
+            startrow = writer.sheets[sheet_name[venue_id]].max_row
+            return_df.to_excel(writer, sheet_name=sheet_name[venue_id], startrow=startrow+1)
+            # excelファイルの装飾
+            ws['A15'] = "成績"
+            ws['A15'].font = Font(bold=True)
+            for col in ws.columns:
+                max_length = 0
+                for i, cell in enumerate(col):
+                    if cell.coordinate[1:]!='14' and int(cell.coordinate[1:])<=19 and int(column_index_from_string(cell.coordinate[0]))<=8: ws[cell.coordinate].border = border1
+                    max_length = max(max_length, len(str(cell.value)))
+                    if (cell.coordinate[0] == 'A' and cell.coordinate[1:] != '14') or cell.coordinate[1:] == '15' and column_index_from_string(cell.coordinate[0])<=8:
+                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
+                        ws[cell.coordinate].font = Font(color="ffffff")
+                    if ws[cell.coordinate].value == 'A':
+                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
+                        ws[cell.coordinate].font = Font(color="000000")
+                    if ws[cell.coordinate].value == 'B':
+                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
+                        ws[cell.coordinate].font = Font(color="000000")
+                    if ws[cell.coordinate].value == 'C':
+                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                        ws[cell.coordinate].font = Font(color="000000")
+                    # 文字を中心に配置する
+                    cell.alignment = Alignment(horizontal = 'center', 
+                                        vertical = 'center',
+                                        wrap_text = False)
+                adjusted_width = max_length * 2.08
+                ws.column_dimensions[col[0].column_letter].width = adjusted_width
             # xlsxをpdfに変換し、pdfディレクトリに保存する
             m.xlsx2pdf(pdf_path[venue_id], ws)
             # pdfをpngに変換し、pngディレクトリに保存する
             m.pdf2png(pdf_path[venue_id])
+            writer.save()
+            wb.save(excel_path)
+            wb.close()
+        # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
         else:
             print("<"+venue_name[venue_id]+">")
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
+        
     # 出力結果が得られた要因
     print(me.feature_importance(X))

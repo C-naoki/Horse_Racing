@@ -9,9 +9,9 @@ race_type_dict = {
 }
 
 # race_id_list
-venue_id_list = ["2022060106", "2022070106", "2022100102"]
+venue_id_list = ["2022060104", "2022070104"]
 # レース日
-date = '2022/01/16'
+date = '2022/01/10'
 # 日付の分割
 year = date[0:4]
 month = date[5:7]
@@ -32,10 +32,12 @@ for venue_id in venue_id_list:
     pdf_path[venue_id] = '../results/'+year+'/pdf/'+month+'月/'+sheet_name[venue_id]+'.pdf'
 
 # xlsxファイルを保存したいpath
-excel_path = '../results/'+year+'/xlsx/'+month+'月.xlsx'
+excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.xlsx'
+# excel_path = '../results/'+year+'/xlsx/'+month+'月.xlsx'
 # return_tablesのpath
 tables_path = ['../_dat/train_data/overall/return_tables.pickle']
 
-# predict_dfのcolumns
+# dfのcolumns
 predict_columns = ["本命馬ランク", "三連複ランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△"]
 result_columns = ["単勝オッズ", "三連単結果", "三連単オッズ", "三連複オッズ", "単勝回収金額", "三連単回収金額", "三連複回収金額"]
+return_columns = ["着順", "単勝的中率", "三連単的中率", "三連複的中率", "単勝回収率", "三連単回収率", "三連複回収率"]

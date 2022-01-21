@@ -58,7 +58,7 @@ def plot(df, label=' '):
     plt.grid(True) #グリッドをつける
 
 def xlsx2pdf(pdf_file, ws):
-    doc = SimpleDocTemplate( pdf_file, pagesize=(475*mm, 150*mm) )
+    doc = SimpleDocTemplate( pdf_file, pagesize=(450*mm, 200*mm) )
     pdfmetrics.registerFont(TTFont('meiryo', '/Users/naoki/Downloads/font/meiryo/meiryo.ttc'))
     pdf_data = []
     data = []
@@ -69,6 +69,20 @@ def xlsx2pdf(pdf_file, ws):
             row_list.append(cell.value)
         data.append(row_list)
     tt = Table(data)
+    tt.setStyle(TableStyle([
+                                ('BACKGROUND',(0, 0),(-1, 0),colors.black),
+                                ('BACKGROUND',(0, 14),(7, 14),colors.black),
+                                ('TEXTCOLOR',(0, 14),(7, 14),colors.white),
+                                ('TEXTCOLOR',(0, 0),(-1, 0),colors.white),
+                                ('BACKGROUND',(0, 0),(0, 12),colors.black),
+                                ('BACKGROUND',(0, 14),(0, -1),colors.black),
+                                ('TEXTCOLOR',(0, 0),(0, 14),colors.white),
+                                ('TEXTCOLOR',(0, 18),(0, 18),colors.white),
+                                ('FONT', (0, 0), (-1, -1), "meiryo", 11),
+                                ('GRID', (0, 0), (ws.max_column, ws.max_row), 0.25, colors.black),
+                                ('VALIGN', (0, 0), (-1, -1), "MIDDLE"),
+                                ('ALIGN', (0, 0), (-1, -1), "CENTER")
+                                ]))
     # 着色
     for row in ws.rows:
         for cell in row:
@@ -85,16 +99,6 @@ def xlsx2pdf(pdf_file, ws):
                 tt.setStyle(TableStyle([
                                 ('BACKGROUND',cell_idx,cell_idx,colors.lightgrey),
                                 ]))
-    tt.setStyle(TableStyle([
-                                ('BACKGROUND',(0, 0),(-1, 0),colors.black),
-                                ('TEXTCOLOR',(0, 0),(-1, 0),colors.white),
-                                ('BACKGROUND',(0, 0),(0, -1),colors.black),
-                                ('TEXTCOLOR',(0, 0),(0, -1),colors.white),
-                                ('FONT', (0, 0), (-1, -1), "meiryo", 11),
-                                ('GRID', (0, 0), (ws.max_column, ws.max_row), 0.25, colors.black),
-                                ('VALIGN', (0, 0), (-1, -1), "MIDDLE"),
-                                ('ALIGN', (0, 0), (-1, -1), "CENTER")
-                                ]))
     pdf_data.append(tt)
     doc.build(pdf_data)
 
@@ -104,3 +108,9 @@ def pdf2png(pdf_path, dpi=200, fmt='png'):
     png_path = Path(png_path)
     page = convert_from_path(pdf_path, dpi)
     page[0].save(png_path, fmt)
+
+def div(a, b):
+    if b == 0 or a == 0:
+        return 0
+    else:
+        return a / b
