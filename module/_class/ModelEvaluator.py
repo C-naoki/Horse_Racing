@@ -6,10 +6,9 @@ from itertools import permutations
 from sklearn.metrics import roc_auc_score
 
 class ModelEvaluator:
-    def __init__(self, model, return_tables_path_list):
+    def __init__(self, model, return_tables_path, kind):
         self.model = model
-        self.rt = Return(pd.read_pickle('_dat/pickle/overall/return_tables.pickle'))
-        # self.rt = Return.read_pickle(return_tables_path_list)
+        self.rt = Return.read_pickle(return_tables_path)
         self.fukusho = self.rt.fukusho
         self.tansho = self.rt.tansho
         self.umaren = self.rt.umaren
@@ -17,17 +16,28 @@ class ModelEvaluator:
         self.wide = self.rt.wide
         self.sanrentan = self.rt.sanrentan
         self.sanrenpuku = self.rt.sanrenpuku
+        self.kind = kind
     
     #3着以内に入る確率を予測
     def predict_proba(self, X, train=True, std=True, minmax=False):
-        if train:
-            proba = pd.Series(
-                self.model.predict_proba(X.drop(['単勝'], axis=1))[:, 1], index=X.index
-            )
-        else:
-            proba = pd.Series(
-                self.model.predict_proba(X, axis=1)[:, 1], index=X.index
-            )
+        if self.kind == 0:
+            if train:
+                proba = pd.Series(
+                    self.model.predict(X.drop(['単勝'], axis=1), num_iteration=self.model.best_iteration), index=X.index
+                )
+            else:
+                proba = pd.Series(
+                    self.model.predict(X, num_iteration=self.model.best_iteration), index=X.index
+                )
+        elif self.kind == 1:
+            if train:
+                proba = pd.Series(
+                    self.model.predict_proba(X.drop(['単勝'], axis=1))[:, 1], index=X.index
+                )
+            else:
+                proba = pd.Series(
+                    self.model.predict_proba(X, axis=1)[:, 1], index=X.index
+                )
         if std:
             #レース内で標準化して、相対評価する。「レース内偏差値」みたいなもの。
             standard_scaler = lambda x: (x - x.mean()) / x.std(ddof=0)
@@ -47,7 +57,9 @@ class ModelEvaluator:
         return roc_auc_score(y_true, self.predict_proba(X))
     
     def feature_importance(self, X, n_display=20):
-        importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importances_})
+        self.model.importance_type='gain'
+        if self.kind == 0: importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importance()})
+        elif self.kind == 1: importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importances_})
         return importances.sort_values("importance", ascending=False)[:n_display]
     
     def pred_table(self, X, threshold=0.5, bet_only=True):
