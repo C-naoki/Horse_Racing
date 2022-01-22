@@ -1,3 +1,6 @@
+import sys
+sys.path.extend(['.../', './'])
+
 import time
 import datetime
 import requests
@@ -7,6 +10,7 @@ import pandas as pd
 from . import DataProcessor
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+from environment.variables import place_dict
 
 class ShutubaTable(DataProcessor):
     def __init__(self, shutuba_tables):
@@ -14,12 +18,12 @@ class ShutubaTable(DataProcessor):
         self.data = shutuba_tables
     
     @classmethod
-    def scrape(cls, race_id_list, date):
+    def scrape(cls, race_id_list, date, place):
         pbar = tqdm(total=len(race_id_list))
         data = pd.DataFrame()
         for race_id in race_id_list:
             pbar.update(1)
-            pbar.set_description("scrape shutuba table")
+            pbar.set_description("scrape shutuba table in {}".format([k for k, v in place_dict.items() if v == place][0]))
             time.sleep(1)
             url = 'https://race.netkeiba.com/race/shutuba.html?race_id=' + race_id
             df = pd.read_html(url)[0]
