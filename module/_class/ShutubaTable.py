@@ -1,7 +1,9 @@
-import pandas as pd
 import time
+import datetime
 import requests
 import re
+import numpy as np
+import pandas as pd
 from . import DataProcessor
 from tqdm import tqdm
 from bs4 import BeautifulSoup
@@ -72,6 +74,8 @@ class ShutubaTable(DataProcessor):
         df["年齢"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
         
         df["date"] = pd.to_datetime(df["date"])
+        df["month_sin"] = df["date"].map(lambda x: np.sin(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
+        df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         
         df['枠'] = df['枠'].astype(int)
         df['馬番'] = df['馬番'].astype(int)
@@ -84,9 +88,6 @@ class ShutubaTable(DataProcessor):
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 使用する列を選択
-        df = df[['枠', '馬番', '斤量', 'course_len', 'weather','race_type',
-        #'体重', '体重変化',
-        'ground_state', 'date', 'horse_id', 
-        'jockey_id', '性', '年齢','開催', 'n_horses']]
+        df = df[['枠', '馬番', '斤量', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', '性', '年齢','開催', 'n_horses', 'month_cos', 'month_sin']]
         
         self.data_p = df.rename(columns={'枠': '枠番'})

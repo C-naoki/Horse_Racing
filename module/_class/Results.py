@@ -148,6 +148,8 @@ class Results(DataProcessor):
         # 不要な列を削除
         df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順'], axis=1, inplace=True)
         df["date"] = pd.to_datetime(df["date"], format="%Y年%m月%d日")
+        df["month_sin"] = df["date"].map(lambda x: np.sin(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
+        df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         #開催場所
         df['開催'] = df.index.map(lambda x:str(x)[4:6])
 	
