@@ -6,6 +6,12 @@ race_results = pd.read_pickle("../_dat/train_data/overall/race_results.pickle")
 return_tables = pd.read_pickle("../_dat/train_data/overall/return_tables.pickle")
 horse_id_list = race_results['horse_id'].unique()
 
+horse_results_2022 = pd.read_pickle("../_dat/train_data/2022/horse_results.pickle")
+ped_results_2022 = pd.read_pickle("../_dat/train_data/2022/ped_results.pickle")
+race_results_2022 = pd.read_pickle("../_dat/train_data/2022/race_results.pickle")
+return_tables_2022 = pd.read_pickle("../_dat/train_data/2022/return_tables.pickle")
+horse_id_list_2022 = race_results_2022['horse_id'].unique()
+
 horse_results_2021 = pd.read_pickle("../_dat/train_data/2021/horse_results.pickle")
 ped_results_2021 = pd.read_pickle("../_dat/train_data/2021/ped_results.pickle")
 race_results_2021 = pd.read_pickle("../_dat/train_data/2021/race_results.pickle")
