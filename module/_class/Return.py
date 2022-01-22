@@ -1,8 +1,12 @@
+import sys
+sys.path.append('.../')
+
 import pandas as pd
 import time
 from ..functions import update_data
 from tqdm import tqdm
 from urllib.request import urlopen
+from environment.variables import place_dict
 
 class Return:
     def __init__(self, return_tables):
@@ -16,42 +20,54 @@ class Return:
         return cls(df)
     
     @staticmethod
-    def scrape(race_id_list, pre_return_tables=pd.DataFrame()):
+    def scrape(race_id_dict, pre_return_tables=pd.DataFrame()):
         return_tables = {}
         arrival_tables = {}
-        pbar = tqdm(total=len(race_id_list))
-        for race_id in race_id_list:
-            pbar.update(1)
-            pbar.set_description("scrape  return table")
-            if len(pre_return_tables) and race_id in pre_return_tables.index:
+        for place, race_id_place in race_id_dict.items():
+            pbar = tqdm(total=len(race_id_place))
+            indexerror_chk = -1
+            for race_id in race_id_place:
+                pbar.update(1)
+                pbar.set_description("scrape  return table in {}".format([k for k, v in place_dict.items() if v == str(place).zfill(2)][0]))
+                time.sleep(1)
+                if len(pre_return_tables) and race_id in pre_return_tables.index:
+                    continue
+                try:
+                    url = "https://db.netkeiba.com/race/" + race_id
+                    #普通にスクレイピングすると複勝やワイドなどが区切られないで繋がってしまう。
+                    #そのため、改行コードを文字列brに変換して後でsplitする
+                    f = urlopen(url)
+                    html = f.read()
+                    html = html.replace(b'<br />', b'br')
+                    dfs1 = pd.read_html(html, match='単勝')[1]
+                    dfs2 = pd.read_html(html, match='三連複')[0]
+                    arrival_df = pd.read_html(html, match='単勝')[0].iloc[:,[0,2]]
+                    # dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
+                    df = pd.concat([dfs1, dfs2])
+                    df.index = [race_id] * len(df)
+                    return_tables[race_id] = df
+                    # 馬番と着順の関係表
+                    arrival_df.index = [race_id] * len(arrival_df)
+                    arrival_df.columns = ["着順", "馬番"]
+                    arrival_tables[race_id] = arrival_df
+                except IndexError:
+                    indexerror_chk = 1
+                    break
+                except Exception as e:
+                    if str(e)[-3:-1]=="単勝": indexerror_chk = 1
+                    else: indexerror_chk = 0
+                    break
+                except:
+                    indexerror_chk = 0
+                    break
+            if indexerror_chk == 1:
+                pbar.close()
+                print("{}回{}日のレースはまだ開催されていません。\n".format(str(race_id)[6:8], str(race_id)[8:10]))
                 continue
-            time.sleep(1)
-            try:
-                url = "https://db.netkeiba.com/race/" + race_id
-
-                #普通にスクレイピングすると複勝やワイドなどが区切られないで繋がってしまう。
-                #そのため、改行コードを文字列brに変換して後でsplitする
-                f = urlopen(url)
-                html = f.read()
-                html = html.replace(b'<br />', b'br')
-                dfs1 = pd.read_html(html, match='単勝')[1]
-                dfs2 = pd.read_html(html, match='三連複')[0]
-                arrival_df = pd.read_html(html, match='単勝')[0].iloc[:,[0,2]]
-                # dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
-                df = pd.concat([dfs1, dfs2])
-                df.index = [race_id] * len(df)
-                return_tables[race_id] = df
-                # 馬番と着順の関係表
-                arrival_df.index = [race_id] * len(arrival_df)
-                arrival_df.columns = ["着順", "馬番"]
-                arrival_tables[race_id] = arrival_df
-            except IndexError:
-                continue
-            except Exception as e:
-                print(e)
+            elif indexerror_chk == 0:
                 break
-            except:
-                break
+            elif indexerror_chk == -1:
+                print("対象のレースを全て取得し終わりました。\n")
 
         #pd.DataFrame型にして一つのデータにまとめる
         return_tables_df = pd.concat([return_tables[key] for key in return_tables])
