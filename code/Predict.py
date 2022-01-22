@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue_id in venue_id_list:
         # 出馬表のスクレイピング
-        st = c.ShutubaTable.scrape(race_id_list=race_id_list[venue_id], date=date)
+        st = c.ShutubaTable.scrape(race_id_list=list(race_id_list[venue_id].values())[0], date=date)
         st.preprocessing()
         st.merge_horse_results(hr)
         st.merge_peds(p.peds_e)

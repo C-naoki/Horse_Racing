@@ -8,7 +8,7 @@ race_type_dict = {
     '芝': '芝', 'ダ': 'ダート', '障': '障害'
 }
 
-# race_id_list
+# race_id_listの要素からしたR情報を削除したもの
 venue_id_list = ["2022060104", "2022070104"]
 # レース日
 date = '2022/01/10'
@@ -24,9 +24,9 @@ venue_name = {}
 sheet_name = {}
 pdf_path = {}
 for venue_id in venue_id_list:
-    race_id_list[venue_id] = [venue_id + str(i).zfill(2) for i in range(1, 13)]
+    race_id_list[venue_id] = {venue_id[4:6]: [venue_id + str(i).zfill(2) for i in range(1, 13)]}
     # 開催地名と記入するシート名
-    venue_name[venue_id] = [k for k, v in place_dict.items() if v == race_id_list[venue_id][0][4:6]][0]
+    venue_name[venue_id] = [k for k, v in place_dict.items() if v == list(race_id_list[venue_id].values())[0][0][4:6]][0]
     sheet_name[venue_id] = day+"日"+venue_name[venue_id]
     # pdfファイルを保存したいpath
     pdf_path[venue_id] = '../results/'+year+'/pdf/'+month+'月/'+sheet_name[venue_id]+'.pdf'
