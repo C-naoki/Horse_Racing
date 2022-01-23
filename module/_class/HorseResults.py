@@ -67,14 +67,13 @@ class HorseResults:
         # 着順に数字以外の文字列が含まれているものを取り除く
         df['着順'] = pd.to_numeric(df['着順'], errors='coerce')
         df.dropna(subset=['着順'], inplace=True)
-        df['着順'] = df['着順'].astype(int)
+        df['order'] = df['着順'].astype(int)
         # 日付データ
         df["date"] = pd.to_datetime(df["日付"])
-        df.drop(['日付'], axis=1, inplace=True)
         # 賞金のNaNを0で埋める
-        df['賞金'].fillna(0, inplace=True)
+        df['prize'] = df['賞金'].fillna(0)
         # 1着の着差を0にする
-        df['着差'] = df['着差'].map(lambda x: 0 if x<0 else x)
+        df['margin'] = df['着差'].map(lambda x: 0 if x<0 else x)
         # タイムデータをfloat型に変換
         df['タイム'].fillna(0, inplace=True)
         df['time'] = df['タイム'].map(lambda x: int(str(x)[0])*60 + int(str(x)[2:4]) + int(str(x)[5])/10 if x!=0 else 0)
@@ -93,25 +92,25 @@ class HorseResults:
         df['first_corner'] = df['通過'].map(lambda x: corner(x, 1))
         df['final_corner'] = df['通過'].map(lambda x: corner(x, 4))
         
-        df['final_to_rank'] = df['final_corner'] - df['着順']
-        df['first_to_rank'] = df['first_corner'] - df['着順']
+        df['final_to_rank'] = df['final_corner'] - df['order']
+        df['first_to_rank'] = df['first_corner'] - df['order']
         df['first_to_final'] = df['first_corner'] - df['final_corner']
         
         #開催場所
-        df['開催'] = df['開催'].str.extract(r'(\D+)')[0].map(place_dict).fillna('11')
+        df['venue'] = df['開催'].str.extract(r'(\D+)')[0].map(place_dict).fillna('11')
         #race_type
         df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(race_type_dict)
         #距離は10の位を切り捨てる
         df['course_len'] = df['距離'].str.extract(r'(\d+)').astype(int) // 100
-        df.drop(['距離'], axis=1, inplace=True)
+        df.drop(['距離', '着差', '賞金', '日付', '着順', '開催'], axis=1, inplace=True)
         #インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(target_listの要素)
         # 過去の平均値を出したいデータ
-        self.target_list = ['着順', '賞金', '着差', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time']
+        self.target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time']
         # 種類に分割したいデータ
-        self.kind_list = ['course_len', 'race_type', '開催']
+        self.kind_list = ['course_len', 'race_type', 'venue']
     
     #n_samplesレース分馬ごとに平均する
     def average(self, horse_id_list, date, n_samples='all'):
@@ -125,7 +124,7 @@ class HorseResults:
         else:
             raise Exception('n_samples must be >0')
         
-	#集計して辞書型に入れる
+        #集計して辞書型に入れる
         self.average_dict = {}
         self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.target_list].mean().add_suffix('_{}R'.format(n_samples))
         for column in self.kind_list:

@@ -25,7 +25,8 @@ class DataProcessor:
         self.data_h = pd.DataFrame()
         self.data_pe = pd.DataFrame()
         self.data_c = pd.DataFrame()
-        
+    
+    # 全てのn_samplesごとにhorse_dataを追加する関数
     def merge_horse_results(self, hr, n_samples_list=[5, 9, 'all']):
         """
         馬の過去成績データから、
@@ -43,7 +44,7 @@ class DataProcessor:
 	
 	#6/6追加： 馬の出走間隔追加
         self.data_h['interval'] = (self.data_h['date'] - self.data_h['latest']).dt.days
-        self.data_h.drop(['開催', 'latest'], axis=1, inplace=True)
+        self.data_h.drop(['venue', 'latest'], axis=1, inplace=True)
 	
     def merge_peds(self, peds):
         """
@@ -54,11 +55,8 @@ class DataProcessor:
             Pedsクラスで加工された血統データ。
         """
 	
-        self.data_pe = \
-            self.data_h.merge(peds, left_on='horse_id', right_index=True,
-                                                            how='left')
-        self.no_peds = self.data_pe[self.data_pe['peds_0'].isnull()]\
-            ['horse_id'].unique()
+        self.data_pe = self.data_h.merge(peds, left_on='horse_id', right_index=True, how='left')
+        self.no_peds = self.data_pe[self.data_pe['peds_0'].isnull()]['horse_id'].unique()
         if len(self.no_peds) > 0:
             print('scrape peds at horse_id_list "no_peds"')
             
@@ -96,11 +94,14 @@ class DataProcessor:
         weathers = results_m['weather'].unique()
         race_types = results_m['race_type'].unique()
         ground_states = results_m['ground_state'].unique()
-        sexes = results_m['性'].unique()
+        sexes = results_m['sex'].unique()
+        
         df['weather'] = pd.Categorical(df['weather'], weathers)
         df['race_type'] = pd.Categorical(df['race_type'], race_types)
         df['ground_state'] = pd.Categorical(df['ground_state'], ground_states)
-        df['性'] = pd.Categorical(df['性'], sexes)
-        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', '性'])
+        df['sex'] = pd.Categorical(df['sex'], sexes)
+        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', 'sex'])
+
+
         
         self.data_c = df

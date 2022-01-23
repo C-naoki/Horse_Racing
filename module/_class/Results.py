@@ -134,24 +134,27 @@ class Results(DataProcessor):
         df['着順'] = pd.to_numeric(df['着順'], errors='coerce')
         df.dropna(subset=['着順'], inplace=True)
         df['着順'] = df['着順'].astype(int)
-        df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
+        df['bracket_num'] = df['枠番']
+        df['horse_num'] = df['馬番']
+        df['weight'] = df['斤量']
 
         # 性齢を性と年齢に分ける
-        df["性"] = df["性齢"].map(lambda x: str(x)[0])
-        df["年齢"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
+        df["sex"] = df["性齢"].map(lambda x: str(x)[0])
+        df["age"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
 
         # 単勝をfloatに変換
-        df["単勝"] = df["単勝"].astype(float)
+        df["odds"] = df["単勝"].astype(float)
+        df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
         # 距離は10の位を切り捨てる
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 不要な列を削除
-        df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順'], axis=1, inplace=True)
+        df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順', '枠番', '馬番', '斤量', '単勝'], axis=1, inplace=True)
         df["date"] = pd.to_datetime(df["date"], format="%Y年%m月%d日")
         df["month_sin"] = df["date"].map(lambda x: np.sin(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         #開催場所
-        df['開催'] = df.index.map(lambda x:str(x)[4:6])
+        df['venue'] = df.index.map(lambda x:str(x)[4:6])
 	
 	#6/6出走数追加
         df['n_horses'] = df.index.map(df.index.value_counts())
