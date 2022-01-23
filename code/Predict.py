@@ -14,7 +14,6 @@ import lightgbm as lgb
 import openpyxl as xl
 import datetime
 
-from environment.variables import *
 from tabulate import tabulate
 from openpyxl.styles import PatternFill
 from openpyxl.styles.borders import Border, Side
@@ -61,7 +60,7 @@ if __name__ == '__main__':
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue_id in venue_id_list:
         # 出馬表のスクレイピング
-        st = c.ShutubaTable.scrape(race_id_list=list(race_id_list[venue_id].values())[0], date=date)
+        st = c.ShutubaTable.scrape(race_id_list=list(race_id_list[venue_id].values())[0], date=date, place=venue_id[4:6])
         st.preprocessing()
         st.merge_horse_results(hr)
         st.merge_peds(p.peds_e)
@@ -251,7 +250,6 @@ if __name__ == '__main__':
                         if ws['L{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                             sanrentan_win += 1
                             sanrentan_money += ws['O{}'.format(i+1)].value
-                            print(ws['O{}'.format(i+1)].value)
                 return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), '{}%'.format(round(m.div(tansho_money, tansho_cnt), 1)), '{}%'.format(round(m.div(sanrentan_money, 20*sanren_cnt), 1)), '{}%'.format(round(m.div(sanrenpuku_money, 20*sanren_cnt), 1))]
                 all_win += tansho_win
                 all_sanrentan_win += sanrentan_win
