@@ -27,11 +27,11 @@ class DataProcessor:
         self.data_c = pd.DataFrame()
     
     # 全てのn_samplesごとにhorse_dataを追加する関数
-    def merge_horse_results(self, hr, n_samples_list=[5, 9, 'all']):
+    def merge_horse_results(self, hr, n_samples_list1=[5, 9, 'all'], n_samples_list2=[1, 2, 3]):
         """
         馬の過去成績データから、
         n_samples_listで指定されたレース分の着順と賞金の平均を追加してdata_hに返す
-        Parameters:
+        Parameters: 
         ----------
         hr : HorseResults
             馬の過去成績データ
@@ -39,9 +39,11 @@ class DataProcessor:
             過去何レース分追加するか
         """
         self.data_h = self.data_p.copy()
-        for n_samples in n_samples_list:
-            self.data_h = hr.merge_all(self.data_h, n_samples=n_samples)
-	
+        for i, n_samples in enumerate(n_samples_list2):
+            self.data_h = hr.merge_past_all(self.data_h, n_samples=n_samples, chk=i)
+        for n_samples in n_samples_list1:
+            self.data_h = hr.merge_average_all(self.data_h, n_samples=n_samples)
+        
 	#6/6追加： 馬の出走間隔追加
         self.data_h['interval'] = (self.data_h['date'] - self.data_h['latest']).dt.days
         self.data_h.drop(['venue', 'latest'], axis=1, inplace=True)
@@ -60,7 +62,7 @@ class DataProcessor:
         if len(self.no_peds) > 0:
             print('scrape peds at horse_id_list "no_peds"')
             
-    def process_categorical(self, le_horse, le_jockey, results_m):
+    def process_categorical(self, le_horse, le_jockey):
         """
         カテゴリ変数を処理してdata_cに返す
         Parameters:
@@ -73,7 +75,8 @@ class DataProcessor:
             ダミー変数化のとき、ResultsクラスとShutubaTableクラスで列を合わせるためのもの
         """
 	
-        df = self.data_pe.copy()
+        if len(self.data_pe) == 0: df = self.data_h.copy()
+        else: df = self.data_pe.copy()
         
         #ラベルエンコーディング。horse_id, jockey_idを0始まりの整数に変換
         mask_horse = df['horse_id'].isin(le_horse.classes_)
@@ -91,17 +94,14 @@ class DataProcessor:
         
         #そのほかのカテゴリ変数をpandasのcategory型に変換してからダミー変数化
         #列を一定にするため
-        weathers = results_m['weather'].unique()
-        race_types = results_m['race_type'].unique()
-        ground_states = results_m['ground_state'].unique()
-        sexes = results_m['sex'].unique()
-        
-        df['weather'] = pd.Categorical(df['weather'], weathers)
-        df['race_type'] = pd.Categorical(df['race_type'], race_types)
-        df['ground_state'] = pd.Categorical(df['ground_state'], ground_states)
-        df['sex'] = pd.Categorical(df['sex'], sexes)
-        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', 'sex'])
+        weathers = df['weather'].unique()
+        race_types = df['race_type'].unique()
+        ground_states = df['ground_state'].unique()
+        sexes = df['sex'].unique()
 
-
-        
+        weather_dict = dict(zip(weathers, list(range(len(weathers)))))
+        race_type_dict = dict(zip(race_types, list(range(len(race_types)))))
+        ground_state_dict = dict(zip(ground_states, list(range(len(ground_states)))))
+        sex_dict = dict(zip(sexes, list(range(len(sexes)))))
+        df = df.replace(weather_dict).replace(race_type_dict).replace(ground_state_dict).replace(sex_dict)
         self.data_c = df
