@@ -78,6 +78,13 @@ class Results(DataProcessor):
                             df["weather"] = [text] * len(df)
                         if "年" in text:
                             df["date"] = [text] * len(df)
+                        if "右" in text:
+                            df["turn"] = [1] * len(df)
+                        elif "左" in text:
+                            df["turn"] = [2] * len(df)
+                        else:
+                            df["turn"] = [0] * len(df)
+                    df["race_num"] = [int(race_id[-2:])] * len(df)
                     #馬ID、騎手IDをスクレイピング
                     horse_id_list = []
                     horse_a_list = soup.find("table", attrs={"summary": "レース結果"}).find_all(
@@ -136,7 +143,7 @@ class Results(DataProcessor):
         df['着順'] = df['着順'].astype(int)
         df['bracket_num'] = df['枠番']
         df['horse_num'] = df['馬番']
-        df['weight'] = df['斤量']
+        df['weight_carry'] = df['斤量']
 
         # 性齢を性と年齢に分ける
         df["sex"] = df["性齢"].map(lambda x: str(x)[0])
@@ -144,7 +151,8 @@ class Results(DataProcessor):
 
         # 単勝をfloatに変換
         df["odds"] = df["単勝"].astype(float)
-        df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
+        # df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
+        df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
         # 距離は10の位を切り捨てる
         df["course_len"] = df["course_len"].astype(float) // 100
 
@@ -163,6 +171,6 @@ class Results(DataProcessor):
     
     #カテゴリ変数の処理
     def process_categorical(self):
-        self.le_horse = LabelEncoder().fit(self.data_pe['horse_id'])
-        self.le_jockey = LabelEncoder().fit(self.data_pe['jockey_id'])
-        super().process_categorical(self.le_horse, self.le_jockey, self.data_pe)
+        self.le_horse = LabelEncoder().fit(self.data_h['horse_id'])
+        self.le_jockey = LabelEncoder().fit(self.data_h['jockey_id'])
+        super().process_categorical(self.le_horse, self.le_jockey)
