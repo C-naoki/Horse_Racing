@@ -8,7 +8,7 @@ from environment.variables import *
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '賞金', '着差', '通過', '開催', '距離', 'タイム']]
+        self.horse_results = horse_results[['日付', '着順', '賞金', '着差', '通過', '開催', '距離', 'タイム', '上り']]
         self.preprocessing()
     
     @classmethod
@@ -77,6 +77,7 @@ class HorseResults:
         # タイムデータをfloat型に変換
         df['タイム'].fillna(0, inplace=True)
         df['time'] = df['タイム'].map(lambda x: int(str(x)[0])*60 + int(str(x)[2:4]) + int(str(x)[5])/10 if x!=0 else 0)
+        df['last3F'] = df['上り'].fillna(0).map(lambda x: int(str(x)[0:2]) + int(str(x)[3])/10 if x!=0 else 0)
         
         #レース展開データ
         #n=1: 最初のコーナー位置, n=4: 最終コーナー位置
@@ -108,15 +109,16 @@ class HorseResults:
         self.horse_results = df
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(target_listの要素)
         # 過去の平均値を出したいデータ
-        self.target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time']
+        self.target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time', 'last3F']
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
-    
+
     #n_samplesレース分馬ごとに平均する
     def average(self, horse_id_list, date, n_samples='all'):
+        # horse_id_listに含まれたindexに絞る
         target_df = self.horse_results.query('index in @horse_id_list')
         
-        #過去何走分取り出すか指定
+        # 過去何走分取り出すか指定
         if n_samples == 'all':
             filtered_df = target_df[target_df['date'] < date]
         elif n_samples > 0:
@@ -124,38 +126,64 @@ class HorseResults:
         else:
             raise Exception('n_samples must be >0')
         
-        #集計して辞書型に入れる
+        # 集計して辞書型に入れる
         self.average_dict = {}
+        # filtered_dfをhorse_id毎に分割し、平均値を出す。そして、その平均値の名前を元の名前に_{}Rをつけた名前とする。
+        # ex.) filterd_dfでorder(self.target_listの要素の一つ)を上からn_samples(=5)個ずつ取得する。その平均値に対して、名前をorder_5Rと再決定する。
         self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.target_list].mean().add_suffix('_{}R'.format(n_samples))
         for column in self.kind_list:
             self.average_dict[column] = filtered_df.groupby(['horse_id', column])[self.target_list].mean().add_suffix('_{}_{}R'.format(column, n_samples))
-	
-        #6/6追加: 馬の出走間隔追加のために、全レースの日付を変数latestに格納
-        if n_samples == 5:
-            self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
     
-    def merge(self, results, date, n_samples='all'):
+    def merge_average(self, results, date, n_samples='all'):
+        # ある日付に関する情報のみに絞る
         df = results[results['date']==date]
+        # horse_id_listを取得する
         horse_id_list = df['horse_id']
         self.average(horse_id_list, date, n_samples)
         merged_df = df.merge(self.average_dict['non_category'], left_on='horse_id', right_index=True, how='left')
         for column in self.kind_list:
-            merged_df = merged_df.merge(self.average_dict[column], 
-                                        left_on=['horse_id', column],
-                                        right_index=True, how='left')
-	
-        #6/6追加：馬の出走間隔追加のために、全レースの日付を変数latestに格納
-        if n_samples == 5:
-            merged_df = merged_df.merge(self.latest, left_on='horse_id', right_index=True, how='left')
+            merged_df = merged_df.merge(self.average_dict[column], left_on=['horse_id', column], right_index=True, how='left')
         return merged_df
-    
-    def merge_all(self, results, n_samples='all'):
+
+    def merge_average_all(self, results, n_samples='all'):
+        # 日付の情報を取得する
         date_list = results['date'].unique()
         temp_list = list()
         pbar = tqdm(total=len(date_list))
         for date in date_list:
             pbar.update(1)
             pbar.set_description("merge {} data".format(str(n_samples)+(" "*(3-len(str(n_samples))))))
-            temp_list.append(self.merge(results, date, n_samples))
+            temp_list.append(self.merge_average(results, date, n_samples))
+        merged_df = pd.concat(temp_list)
+        return merged_df
+
+    def past(self, horse_id_list, date, n_samples, chk):
+        target_df = self.horse_results.query('index in @horse_id_list')
+        filtered_df = target_df[target_df['date'] < date].sort_values('date', ascending=False).groupby(level=0).head(n_samples)
+        self.past_dict = {}
+        self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
+        if chk == 0:
+            self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
+
+    def merge_past(self, results, date, n_samples, chk):
+        # ある日付に関する情報のみに絞る
+        df = results[results['date']==date]
+        # horse_id_listを取得する
+        horse_id_list = df['horse_id']
+        self.past(horse_id_list, date, n_samples, chk)
+        merged_df = df.merge(self.past_dict['non_category'], left_on='horse_id', right_index=True, how='left')
+        if chk == 0:
+            merged_df = merged_df.merge(self.latest, left_on='horse_id', right_index=True, how='left')
+        return merged_df
+
+    def merge_past_all(self, results, n_samples, chk):
+        # 日付の情報を取得する
+        date_list = results['date'].unique()
+        temp_list = list()
+        pbar = tqdm(total=len(date_list))
+        for date in date_list:
+            pbar.update(1)
+            pbar.set_description("merge p{} data".format(str(n_samples)+(" "*(2-len(str(n_samples))))))
+            temp_list.append(self.merge_past(results, date, n_samples, chk))
         merged_df = pd.concat(temp_list)
         return merged_df
