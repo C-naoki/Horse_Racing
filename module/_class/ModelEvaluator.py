@@ -6,7 +6,7 @@ from itertools import permutations
 from sklearn.metrics import roc_auc_score
 
 class ModelEvaluator:
-    def __init__(self, model, return_tables_path, kind):
+    def __init__(self, model, return_tables_path, kind = 0, obj='binary'):
         self.model = model
         self.rt = Return.read_pickle(return_tables_path)
         self.fukusho = self.rt.fukusho
@@ -16,27 +16,42 @@ class ModelEvaluator:
         self.wide = self.rt.wide
         self.sanrentan = self.rt.sanrentan
         self.sanrenpuku = self.rt.sanrenpuku
-        self.kind = kind
+        self.obj = obj
+        if self.obj == 'regression':
+            self.kind = 1
+        else:
+            self.kind = kind
     
     #3着以内に入る確率を予測
     def predict_proba(self, X, train=True, std=True, minmax=False):
-        if self.kind == 0:
+        if self.obj == 'binary':
+            if self.kind == 0:
+                if train:
+                    proba = pd.Series(
+                        self.model.predict(X.drop(['odds'], axis=1), num_iteration=self.model.best_iteration), index=X.index
+                    )
+                else:
+                    proba = pd.Series(
+                        self.model.predict(X, num_iteration=self.model.best_iteration), index=X.index
+                    )
+            elif self.kind == 1:
+                if train:
+                    proba = pd.Series(
+                        self.model.predict_proba(X.drop(['odds'], axis=1))[:, 1], index=X.index
+                    )
+                else:
+                    proba = pd.Series(
+                        self.model.predict_proba(X, axis=1)[:, 1], index=X.index
+                    )
+        elif self.obj == 'regression':
+            self.kind = 1
             if train:
                 proba = pd.Series(
-                    self.model.predict(X.drop(['単勝'], axis=1), num_iteration=self.model.best_iteration), index=X.index
+                    self.model.predict(X.drop(['odds'], axis=1)), index=X.index
                 )
             else:
                 proba = pd.Series(
-                    self.model.predict(X, num_iteration=self.model.best_iteration), index=X.index
-                )
-        elif self.kind == 1:
-            if train:
-                proba = pd.Series(
-                    self.model.predict_proba(X.drop(['単勝'], axis=1))[:, 1], index=X.index
-                )
-            else:
-                proba = pd.Series(
-                    self.model.predict_proba(X, axis=1)[:, 1], index=X.index
+                    self.model.predict(X), index=X.index
                 )
         if std:
             #レース内で標準化して、相対評価する。「レース内偏差値」みたいなもの。
@@ -56,20 +71,20 @@ class ModelEvaluator:
     def score(self, y_true, X):
         return roc_auc_score(y_true, self.predict_proba(X))
     
-    def feature_importance(self, X, n_display=20):
-        self.model.importance_type='gain'
+    def feature_importance(self, X, n_display=20, type='gain'):
+        self.model.importance_type=type
         if self.kind == 0: importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importance()})
         elif self.kind == 1: importances = pd.DataFrame({"features": X.columns, "importance": self.model.feature_importances_})
         return importances.sort_values("importance", ascending=False)[:n_display]
     
     def pred_table(self, X, threshold=0.5, bet_only=True):
-        pred_table = X.copy()[['馬番', '単勝']]
+        pred_table = X.copy()[['horse_num', 'odds']]
         pred_table['pred'] = self.predict(X, threshold)
         pred_table['score'] = self.proba
         if bet_only:
             return pred_table[pred_table['pred']==1]
         else:
-            return pred_table[['馬番', '単勝', 'score', 'pred']]
+            return pred_table[['horse_num', 'odds', 'score', 'pred']]
         
     def bet(self, race_id, kind, umaban, amount):
         if kind == 'fukusho':
@@ -106,7 +121,7 @@ class ModelEvaluator:
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
             return_list.append(np.sum([
-                self.bet(race_id, 'fukusho', umaban, 1) for umaban in preds['馬番']
+                self.bet(race_id, 'fukusho', umaban, 1) for umaban in preds['horse_num']
             ]))
         return_rate = np.sum(return_list) / n_bets
         std = np.std(return_list) * np.sqrt(len(return_list)) / n_bets
@@ -121,7 +136,7 @@ class ModelEvaluator:
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
             return_list.append(
-                np.sum([self.bet(race_id, 'tansho', umaban, 1) for umaban in preds['馬番']])
+                np.sum([self.bet(race_id, 'tansho', umaban, 1) for umaban in preds['horse_num']])
             )
         
         std = np.std(return_list) * np.sqrt(len(return_list)) / n_bets
@@ -136,9 +151,9 @@ class ModelEvaluator:
         
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
-            return_list.append(np.sum(preds.apply(lambda x: self.bet(race_id, 'tansho', x['馬番'], 1/x['単勝']), axis=1)))
+            return_list.append(np.sum(preds.apply(lambda x: self.bet(race_id, 'tansho', x['horse_num'], 1/x['odds']), axis=1)))
         
-        bet_money = (1 / pred_table['単勝']).sum()
+        bet_money = (1 / pred_table['odds']).sum()
         
         std = np.std(return_list) * np.sqrt(len(return_list)) / bet_money
         
@@ -157,7 +172,7 @@ class ModelEvaluator:
             if len(preds_jiku) == 1:
                 continue
             elif len(preds_jiku) >= 2:
-                for umaban in combinations(preds_jiku['馬番'], 2):
+                for umaban in combinations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'umaren', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -179,7 +194,7 @@ class ModelEvaluator:
             if len(preds_jiku) == 1:
                 continue   
             elif len(preds_jiku) >= 2:
-                for umaban in permutations(preds_jiku['馬番'], 2):
+                for umaban in permutations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'umatan', umaban, 1)
                     n_bets += 1
             return_list.append(return_)
@@ -201,7 +216,7 @@ class ModelEvaluator:
             if len(preds_jiku) == 1:
                 continue
             elif len(preds_jiku) >= 2:
-                for umaban in combinations(preds_jiku['馬番'], 2):
+                for umaban in combinations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'wide', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -222,7 +237,7 @@ class ModelEvaluator:
             if len(preds)<3:
                 continue
             else:
-                for umaban in permutations(preds['馬番'], 3):
+                for umaban in permutations(preds['horse_num'], 3):
                     return_ += self.bet(race_id, 'sanrentan', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -243,7 +258,7 @@ class ModelEvaluator:
             if len(preds)<3:
                 continue
             else:
-                for umaban in combinations(preds['馬番'], 3):
+                for umaban in combinations(preds['horse_num'], 3):
                     return_ += self.bet(race_id, 'sanrenpuku', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -263,14 +278,13 @@ class ModelEvaluator:
             return_ = 0
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
-                preds_aite = preds.sort_values('score', ascending = False)\
-                    .iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umaren', [preds_jiku['馬番'].values[0], x], 1)
+                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['horse_num']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umaren', [preds_jiku['horse_num'].values[0], x], 1)
                 ).sum()
                 n_bets += n_aite
                 return_list.append(return_)
             elif len(preds_jiku) >= 2:
-                for umaban in combinations(preds_jiku['馬番'], 2):
+                for umaban in combinations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'umaren', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -290,12 +304,12 @@ class ModelEvaluator:
             return_ = 0
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
-                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umatan', [preds_jiku['馬番'].values[0], x], 1)).sum()
+                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['horse_num']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'umatan', [preds_jiku['horse_num'].values[0], x], 1)).sum()
                 n_bets += n_aite
                 
             elif len(preds_jiku) >= 2:
-                for umaban in permutations(preds_jiku['馬番'], 2):
+                for umaban in permutations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'umatan', umaban, 1)
                     n_bets += 1
             return_list.append(return_)
@@ -315,12 +329,12 @@ class ModelEvaluator:
             return_ = 0
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
-                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['馬番']
-                return_ = preds_aite.map(lambda x: self.bet(race_id, 'wide', [preds_jiku['馬番'].values[0], x], 1)).sum()
+                preds_aite = preds.sort_values('score', ascending = False).iloc[1:(n_aite+1)]['horse_num']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'wide', [preds_jiku['horse_num'].values[0], x], 1)).sum()
                 n_bets += len(preds_aite)
                 return_list.append(return_)
             elif len(preds_jiku) >= 2:
-                for umaban in combinations(preds_jiku['馬番'], 2):
+                for umaban in combinations(preds_jiku['horse_num'], 2):
                     return_ += self.bet(race_id, 'wide', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
@@ -337,18 +351,18 @@ class ModelEvaluator:
         n_bets = 0
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
-            # pred == 1: thresholdの結果、購入すべきと判断された馬番
+            # pred == 1: thresholdの結果、購入すべきと判断されたhorse_num
             preds_jiku = preds.query('pred == 1')
             if len(preds_jiku) == 1:
                 continue
             elif len(preds_jiku) == 2:
-                preds_aite = preds.sort_values('score', ascending = False).iloc[2:(n_aite+2)]['馬番']
-                return_ = preds_aite.map(lambda x: self.bet(race_id, 'sanrentan',np.append(preds_jiku['馬番'].values, x),1)).sum()
+                preds_aite = preds.sort_values('score', ascending = False).iloc[2:(n_aite+2)]['horse_num']
+                return_ = preds_aite.map(lambda x: self.bet(race_id, 'sanrentan',np.append(preds_jiku['horse_num'].values, x),1)).sum()
                 n_bets += len(preds_aite)
                 return_list.append(return_)
             elif len(preds_jiku) >= 3:
                 return_ = 0
-                for umaban in permutations(preds_jiku['馬番'], 3):
+                for umaban in permutations(preds_jiku['horse_num'], 3):
                     return_ += self.bet(race_id, 'sanrentan', umaban, 1)
                     n_bets += 1
                 return_list.append(return_)
