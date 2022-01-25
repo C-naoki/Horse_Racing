@@ -2,13 +2,15 @@ import numpy as np
 import pandas as pd
 import re
 import time
+import requests
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 from ..functions import update_data
 from environment.variables import *
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '賞金', '着差', '通過', '開催', '距離', 'タイム', '上り']]
+        self.horse_results = horse_results[['日付', '着順', '賞金', '着差', '通過', '開催', '距離', 'タイム', '上り', 'R']]
         self.preprocessing()
     
     @classmethod
@@ -32,18 +34,34 @@ class HorseResults:
             全馬の過去成績データをまとめてDataFrame型にしたもの
         """
 
-        #horse_idをkeyにしてDataFrame型を格納
+        # horse_idをkeyにしてDataFrame型を格納
         horse_results = {}
+        # プレミアムアカウントのデータを利用するためnetkeibaにログイン
+        url_login = "https://regist.netkeiba.com/account/?pid=login&action=auth"
+        payload = {
+            'login_id': USER,
+            'pswd': PASS
+        }
+        session = requests.Session()
+        st=session.post(url_login, data=payload)
         for horse_id in tqdm(horse_id_list):
             if len(pre_horse_results) and horse_id in pre_horse_results.index:
                 continue
             time.sleep(1)
             try:
                 url = 'https://db.netkeiba.com/horse/' + horse_id
-                df = pd.read_html(url)[3]
+                html = session.get(url)
+                html.encoding = html.apparent_encoding
+                df = pd.read_html(html.content)[3]
                 #受賞歴がある馬の場合、3番目に受賞歴テーブルが来るため、4番目のデータを取得する
                 if df.columns[0]=='受賞歴':
                     df = pd.read_html(url)[4]
+                soup = BeautifulSoup(html.content, "html.parser")
+                temp = soup.find_all('table')[1].find_all('td')
+                df['birthday'] = [temp[0].text] * len(df)
+                df['trainer'] = [re.findall(r'\d+', temp[1].find('a').get('href'))[0]] * len(df)
+                df['owner'] = [re.findall(r'\d+', temp[2].find('a').get('href'))[0]] * len(df)
+                df['breeder'] = [re.findall(r'\d+', temp[3].find('a').get('href'))[0]] * len(df)
                 df.index = [horse_id] * len(df)
                 horse_results[horse_id] = df
             except IndexError:
@@ -107,9 +125,10 @@ class HorseResults:
         #インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
-        # ex. ) "course_len"(kind_listの要素)毎の"着順"(target_listの要素)
+        # ex. ) "course_len"(kind_listの要素)毎の"着順"(avg_target_listの要素)
         # 過去の平均値を出したいデータ
-        self.target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time', 'last3F']
+        self.avg_target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time', 'last3F']
+        self.past_target_list = ['R'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
 
@@ -129,10 +148,10 @@ class HorseResults:
         # 集計して辞書型に入れる
         self.average_dict = {}
         # filtered_dfをhorse_id毎に分割し、平均値を出す。そして、その平均値の名前を元の名前に_{}Rをつけた名前とする。
-        # ex.) filterd_dfでorder(self.target_listの要素の一つ)を上からn_samples(=5)個ずつ取得する。その平均値に対して、名前をorder_5Rと再決定する。
-        self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.target_list].mean().add_suffix('_{}R'.format(n_samples))
+        # ex.) filterd_dfでorder(self.avg_target_listの要素の一つ)を上からn_samples(=5)個ずつ取得する。その平均値に対して、名前をorder_5Rと再決定する。
+        self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.avg_target_list].mean().add_suffix('_{}R'.format(n_samples))
         for column in self.kind_list:
-            self.average_dict[column] = filtered_df.groupby(['horse_id', column])[self.target_list].mean().add_suffix('_{}_{}R'.format(column, n_samples))
+            self.average_dict[column] = filtered_df.groupby(['horse_id', column])[self.avg_target_list].mean().add_suffix('_{}_{}R'.format(column, n_samples))
     
     def merge_average(self, results, date, n_samples='all'):
         # ある日付に関する情報のみに絞る
@@ -161,7 +180,7 @@ class HorseResults:
         target_df = self.horse_results.query('index in @horse_id_list')
         filtered_df = target_df[target_df['date'] < date].sort_values('date', ascending=False).groupby(level=0).head(n_samples)
         self.past_dict = {}
-        self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
+        self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.past_target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
         if chk == 0:
             self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
 
