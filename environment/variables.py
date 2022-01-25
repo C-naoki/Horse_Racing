@@ -1,3 +1,7 @@
+import os
+USER = os.environ['private_gmail']
+PASS = os.environ['netkeiba_pass']
+
 #開催場所をidに変換するための辞書型
 place_dict = {
     '札幌':'01',  '函館':'02',  '福島':'03',  '新潟':'04',  '東京':'05', 
