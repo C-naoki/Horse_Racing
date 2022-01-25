@@ -12,7 +12,7 @@ from tqdm import tqdm
 from bs4 import BeautifulSoup
 from . import DataProcessor
 from ..functions import update_data
-from environment.variables import place_dict
+from environment.variables import *
 
 
 class Results(DataProcessor):
@@ -43,6 +43,14 @@ class Results(DataProcessor):
 
         #race_idをkeyにしてDataFrame型を格納
         race_results = {}
+        # プレミアムアカウントのデータを利用するためnetkeibaにログイン
+        url_login = "https://regist.netkeiba.com/account/?pid=login&action=auth"
+        payload = {
+            'login_id': USER,
+            'pswd': PASS
+        }
+        session = requests.Session()
+        st=session.post(url_login, data=payload)
         for place, race_id_place in race_id_dict.items():
             pbar = tqdm(total=len(race_id_place))
             indexerror_chk = -1
@@ -56,8 +64,8 @@ class Results(DataProcessor):
                     url = "https://db.netkeiba.com/race/" + race_id
                     #メインとなるテーブルデータを取得
                     df = pd.read_html(url)[0]
-                    html = requests.get(url)
-                    html.encoding = "EUC-JP"
+                    html = session.get(url)
+                    html.encoding = html.apparent_encoding
                     soup = BeautifulSoup(html.text, "html.parser")
                     #天候、レースの種類、コースの長さ、馬場の状態、日付をスクレイピング
                     texts = (
@@ -71,7 +79,7 @@ class Results(DataProcessor):
                         if "障" in text:
                             df["race_type"] = ["障害"] * len(df)
                         if "m" in text:
-                            df["course_len"] = int(re.findall(r"(\d+)m", text)[0]) * len(df)
+                            df["course_len"] = [int(re.findall(r"(\d+)m", text)[0])] * len(df)
                         if text in ["良", "稍重", "重", "不良"]:
                             df["ground_state"] = [text] * len(df)
                         if text in ["曇", "晴", "雨", "小雨", "小雪", "雪"]:
@@ -104,6 +112,7 @@ class Results(DataProcessor):
                     df["jockey_id"] = jockey_id_list
                     #インデックスをrace_idにする
                     df.index = [race_id] * len(df)
+                    print(df)
                     race_results[race_id] = df
                 #存在しないrace_idを飛ばし次の開催地のスクレイピングに移す
                 except IndexError:
