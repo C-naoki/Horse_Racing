@@ -155,6 +155,8 @@ class Results(DataProcessor):
         df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
         # 距離は10の位を切り捨てる
         df["course_len"] = df["course_len"].astype(float) // 100
+        # 障害レースの削除
+        df = df[df['race_type']!='障害']
 
         # 不要な列を削除
         df.drop(["タイム", "着差", "調教師", "性齢", "馬体重", '馬名', '騎手', '人気', '着順', '枠番', '馬番', '斤量', '単勝'], axis=1, inplace=True)
