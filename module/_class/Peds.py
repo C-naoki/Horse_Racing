@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 class Peds:
     def __init__(self, peds):
         self.peds = peds
-        self.peds_e = pd.DataFrame() #after label encoding and transforming into category
+        self.peds_e = pd.DataFrame() # after label encoding and transforming into category
     
     @classmethod
     def read_pickle(cls, path_list):
@@ -64,7 +64,10 @@ class Peds:
             except:
                 break
         #列名をpeds_0, ..., peds_61にする
-        peds_df = pd.concat([peds_dict[key] for key in peds_dict], axis=1).T.add_prefix('peds_')
+        try:
+            peds_df = pd.concat([peds_dict[key] for key in peds_dict], axis=1).T.add_prefix('peds_')
+        except ValueError:
+            return pre_ped_results
         if len(pre_ped_results.index):
             return pd.concat([pre_ped_results, peds_df])
         else:

@@ -24,56 +24,61 @@ class Return:
         return_tables = {}
         arrival_tables = {}
         for place, race_id_place in race_id_dict.items():
-            pbar = tqdm(total=len(race_id_place))
-            indexerror_chk = -1
-            for race_id in race_id_place:
-                pbar.update(1)
-                pbar.set_description("scrape  return table in {}".format([k for k, v in place_dict.items() if v == str(place).zfill(2)][0]))
-                time.sleep(1)
-                if len(pre_return_tables) and race_id in pre_return_tables.index:
+            for kai, race_id_kai in race_id_place.items():
+                indexerror_chk = -1
+                pbar = tqdm(total=len(race_id_kai))
+                for race_id in race_id_kai:
+                    pbar.update(1)
+                    pbar.set_description("scrape  return table in {} {}回".format([k for k, v in place_dict.items() if v == str(place).zfill(2)][0], kai))
+                    if len(pre_return_tables) and race_id in set(pre_return_tables.index):
+                        continue
+                    try:
+                        time.sleep(1)
+                        url = "https://db.netkeiba.com/race/" + race_id
+                        #普通にスクレイピングすると複勝やワイドなどが区切られないで繋がってしまう。
+                        #そのため、改行コードを文字列brに変換して後でsplitする
+                        f = urlopen(url)
+                        html = f.read()
+                        html = html.replace(b'<br />', b'br')
+                        dfs1 = pd.read_html(html, match='単勝')[1]
+                        dfs2 = pd.read_html(html, match='三連複')[0]
+                        arrival_df = pd.read_html(html, match='単勝')[0].iloc[:,[0,2]]
+                        # dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
+                        df = pd.concat([dfs1, dfs2])
+                        df.index = [race_id] * len(df)
+                        return_tables[race_id] = df
+                        # 馬番と着順の関係表
+                        arrival_df.index = [race_id] * len(arrival_df)
+                        arrival_df.columns = ["着順", "馬番"]
+                        arrival_tables[race_id] = arrival_df
+                    except IndexError:
+                        indexerror_chk = 1
+                        break
+                    except Exception as e:
+                        if str(e)[-3:-1]=="単勝": indexerror_chk = 1
+                        else: indexerror_chk = 0
+                        break
+                    except:
+                        indexerror_chk = 0
+                        break
+                if indexerror_chk == 1:
+                    pbar.close()
+                    print("{}回{}日のレースはまだ開催されていません。\n".format(str(race_id)[6:8], str(race_id)[8:10]))
                     continue
-                try:
-                    url = "https://db.netkeiba.com/race/" + race_id
-                    #普通にスクレイピングすると複勝やワイドなどが区切られないで繋がってしまう。
-                    #そのため、改行コードを文字列brに変換して後でsplitする
-                    f = urlopen(url)
-                    html = f.read()
-                    html = html.replace(b'<br />', b'br')
-                    dfs1 = pd.read_html(html, match='単勝')[1]
-                    dfs2 = pd.read_html(html, match='三連複')[0]
-                    arrival_df = pd.read_html(html, match='単勝')[0].iloc[:,[0,2]]
-                    # dfsの1番目に単勝〜馬連、2番目にワイド〜三連単がある
-                    df = pd.concat([dfs1, dfs2])
-                    df.index = [race_id] * len(df)
-                    return_tables[race_id] = df
-                    # 馬番と着順の関係表
-                    arrival_df.index = [race_id] * len(arrival_df)
-                    arrival_df.columns = ["着順", "馬番"]
-                    arrival_tables[race_id] = arrival_df
-                except IndexError:
-                    indexerror_chk = 1
+                elif indexerror_chk == 0:
                     break
-                except Exception as e:
-                    if str(e)[-3:-1]=="単勝": indexerror_chk = 1
-                    else: indexerror_chk = 0
-                    break
-                except:
-                    indexerror_chk = 0
-                    break
-            if indexerror_chk == 1:
-                pbar.close()
-                print("{}回{}日のレースはまだ開催されていません。\n".format(str(race_id)[6:8], str(race_id)[8:10]))
-                continue
-            elif indexerror_chk == 0:
-                break
-            elif indexerror_chk == -1:
-                print("対象のレースを全て取得し終わりました。\n")
+                elif indexerror_chk == -1:
+                    pbar.close()
+                    print("対象のレースを全て取得し終わりました。\n")
 
         #pd.DataFrame型にして一つのデータにまとめる
-        return_tables_df = pd.concat([return_tables[key] for key in return_tables])
-        arrival_tables_df = pd.concat([arrival_tables[key] for key in arrival_tables])
+        try:
+            return_tables_df = pd.concat([return_tables[key] for key in return_tables])
+            arrival_tables_df = pd.concat([arrival_tables[key] for key in arrival_tables])
+        except ValueError:
+            return pre_return_tables, pd.DataFrame()
         if len(pre_return_tables.index):
-            return pd.concat([pre_return_tables, return_tables_df])
+            return pd.concat([pre_return_tables, return_tables_df]), arrival_tables_df
         else:
             return return_tables_df, arrival_tables_df
 
