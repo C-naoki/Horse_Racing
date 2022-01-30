@@ -23,21 +23,21 @@ from openpyxl.utils import column_index_from_string
 
 if __name__ == '__main__':
     # race_dataの取得
-    r = c.Results(_dat.race_results)
+    r = c.Results(_dat.race_results["overall"])
     # 前処理
     r.preprocessing()
     # 馬の過去成績の追加
-    hr = c.HorseResults(_dat.horse_results)
+    hr = c.HorseResults(_dat.horse_results["overall"])
     r.merge_horse_results(hr)
     # 5世代分の血統データの追加
-    p = c.Peds(_dat.ped_results)
+    p = c.Peds(_dat.ped_results["overall"])
     p.encode()
     r.merge_peds(p.peds_e)
     # カテゴリ変数の処理
     r.process_categorical()
 
     # 訓練データと検証データに分割
-    X = r.data_c.drop(['rank', 'date', '単勝'], axis=1)
+    X = r.data_c.drop(['rank', 'date', 'odds'], axis=1)
     y = r.data_c['rank']
 
     params={'objective': 'binary',
