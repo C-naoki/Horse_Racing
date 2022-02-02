@@ -17,7 +17,7 @@ class ModelEvaluator:
         self.sanrentan = self.rt.sanrentan
         self.sanrenpuku = self.rt.sanrenpuku
         self.obj = obj
-        if self.obj == 'regression':
+        if self.obj == 'regression' or self.obj == "lambdarank":
             self.kind = 1
         else:
             self.kind = kind
@@ -43,7 +43,7 @@ class ModelEvaluator:
                     proba = pd.Series(
                         self.model.predict_proba(X, axis=1)[:, 1], index=X.index
                     )
-        elif self.obj == 'regression':
+        elif self.obj == 'regression' or self.obj == "lambdarank":
             self.kind = 1
             if train:
                 proba = pd.Series(
@@ -86,6 +86,7 @@ class ModelEvaluator:
         else:
             return pred_table[['horse_num', 'odds', 'score', 'pred']]
         
+    # race_idを指定し、そのレースにおける勝ち馬と予想馬が等しい場合、賭け金を返す関数
     def bet(self, race_id, kind, umaban, amount):
         if kind == 'fukusho':
             rt_1R = self.fukusho.loc[race_id]
@@ -135,9 +136,7 @@ class ModelEvaluator:
         
         return_list = []
         for race_id, preds in pred_table.groupby(level=0):
-            return_list.append(
-                np.sum([self.bet(race_id, 'tansho', umaban, 1) for umaban in preds['horse_num']])
-            )
+            return_list.append(np.sum([self.bet(race_id, 'tansho', umaban, 1) for umaban in preds['horse_num']]))
         
         std = np.std(return_list) * np.sqrt(len(return_list)) / n_bets
         
