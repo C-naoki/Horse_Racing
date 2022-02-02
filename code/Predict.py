@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # race_dataの取得
     r = c.Results(_dat.race_results["overall"])
     # 前処理
-    r.preprocessing()
+    r.preprocessing(obj=objective)
     # 馬の過去成績の追加
     hr = c.HorseResults(_dat.horse_results["overall"])
     r.merge_horse_results(hr)
@@ -37,22 +37,18 @@ if __name__ == '__main__':
     r.process_categorical()
 
     # 訓練データと検証データに分割
-    X = r.data_c.drop(['rank', 'date', 'odds'], axis=1)
+    X = r.data_c.drop(['rank', 'date', 'odds', 'jockey_id'], axis=1)
     y = r.data_c['rank']
 
-    params={'objective': 'binary',
-            'random_state': 100,
-            'feature_pre_filter': False,
-            'lambda_l1': 5.656720411334836,
-            'lambda_l2': 0.0008932155945833474,
-            'num_leaves': 31,
-            'feature_fraction': 0.4,
-            'bagging_fraction': 1.0,
-            'bagging_freq': 0,
-            'min_child_samples': 20}
+    # クエリの作成
+    query = list()
+    for i in X.groupby(level=0):
+        query.append(len(i[1]))
     # lightgbmでの学習
-    lgb_clf = lgb.LGBMClassifier(**params)
-    lgb_clf.fit(X.values, y.values)
+    lgb_clf_1 = lgb.LGBMRanker(**params_1)
+    lgb_clf_1.fit(X.values, y.values, group=query)
+    lgb_clf_2 = lgb.LGBMRanker(**params_2)
+    lgb_clf_2.fit(X.values, y.values, group=query)
 
     # 出馬表データのスクレイピング
     # 欲しい出馬表のrace_id, 日付を引数とする。
@@ -60,27 +56,33 @@ if __name__ == '__main__':
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue_id in venue_id_list:
         # 出馬表のスクレイピング
-        st = c.ShutubaTable.scrape(race_id_list=list(race_id_list[venue_id].values())[0], date=date, place=venue_id[4:6])
+        st = c.ShutubaTable.scrape(race_id_list=race_id_list[venue_id][venue_id[4:6]][venue_id[6:8]], date=date, place=venue_id[4:6])
         st.preprocessing()
         st.merge_horse_results(hr)
         st.merge_peds(p.peds_e)
-        st.process_categorical(r.le_horse, r.le_jockey, r.data_pe)
+        st.process_categorical(r.le_horse, r.le_jockey)
         # ModelEvaluator
-        me = c.ModelEvaluator(lgb_clf, tables_path, kind=1)
-        X_fact = st.data_c.drop(['date'], axis=1)
+        me1 = c.ModelEvaluator(lgb_clf_1, tables_path, kind=1, obj=objective)
+        me2 = c.ModelEvaluator(lgb_clf_2, tables_path, kind=1, obj=objective)
+        X_fact = st.data_c.drop(['date', 'jockey_id'], axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
-        pred = me.predict_proba(X_fact, train=False)
-        proba_table = st.data_c[['馬番']].astype('int').copy()
-        proba_table['score'] = pred.astype('float64')
+        pred_1 = me1.predict_proba(X_fact, train=False)
+        pred_2 = me2.predict_proba(X_fact, train=False)
+        proba_table = st.data_c[['horse_num']].astype('int').copy()
+        proba_table['score_1'] = pred_1.astype('float64')
+        proba_table['score'] = pred_2.astype('float64')
+        for i, proba in enumerate(proba_table.groupby(level=0)):
+            proba[1].loc[proba[1]['horse_num']==int(proba[1].sort_values('score_1', ascending = False).iloc[0, 0]), 'score'] = proba[1].loc[proba[1]['horse_num']==int(proba[1].sort_values('score_1', ascending = False).iloc[0, 0]), 'score_1']
+        proba_table = proba_table[['horse_num', 'score']]
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
             return_chk = 1
             today_return_tables, arrival_tables_df = c.Return.scrape(race_id_list[venue_id])
             rt = c.Return(today_return_tables)
-            tansho_df = rt.tansho
-            fukusho_df = rt.fukusho
-            sanrentan_df = rt.sanrentan
-            sanrenpuku_df = rt.sanrenpuku
+            tansho_df = rt.tansho.fillna(0)
+            fukusho_df = rt.fukusho.fillna(0)
+            sanrentan_df = rt.sanrentan.fillna(0)
+            sanrenpuku_df = rt.sanrenpuku.fillna(0)
             predict_df = pd.DataFrame(
                                         index = [], 
                                         columns = predict_columns + result_columns
@@ -104,18 +106,18 @@ if __name__ == '__main__':
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
             # 三連複のランクの決定
-            if len(race_proba["score"][race_proba["score"]>=1.5])>=3:
+            if len(race_proba["score"][race_proba["score"]>=1])>=6:
                 triple_rank = "A"
-            elif len(race_proba["score"][race_proba["score"]>=1.5])>=2:
+            elif len(race_proba["score"][race_proba["score"]>=1])>=4:
                 triple_rank = "B"
-            elif len(race_proba["score"][race_proba["score"]>=1.5])>=1:
+            elif len(race_proba["score"][race_proba["score"]>=1])>=2:
                 triple_rank = "C"
             else:
                 triple_rank = "-"
             # 本命馬のランクの決定
-            if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 3:
+            if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2:
                 favorite_rank = "A"
-            elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 or race_proba.iat[0, 1] >= 3:
+            elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 or race_proba.iat[0, 1] >= 2:
                 favorite_rank = "B"
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 0.4:
                 favorite_rank = "C"
@@ -196,11 +198,12 @@ if __name__ == '__main__':
             for row in ws.rows:
                 if 1 < int(row[0].coordinate[1:]) < 14:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)["score"].head(6)):
-                        if score > 3:
+                        # 馬のスコアごとに色付け
+                        if score > 2.4:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                         elif score > 2:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
-                        elif score > 1.5:
+                        elif score > 1:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
             wb.save(excel_path)
             wb.close()
@@ -310,4 +313,4 @@ if __name__ == '__main__':
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
         
     # 出力結果が得られた要因
-    print(me.feature_importance(X))
+    print(me1.feature_importance(X))
