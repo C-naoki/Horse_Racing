@@ -10,7 +10,7 @@ from environment.variables import *
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '賞金', '着差', '通過', '開催', '距離', 'タイム', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考']]
+        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder', 'birthday', 'owner', 'trainer']]
         self.preprocessing()
     
     @classmethod
@@ -94,19 +94,17 @@ class HorseResults:
         df['order'] = df['着順'].astype(int)
         # 日付データ
         df["date"] = pd.to_datetime(df["日付"])
-        # 賞金のNaNを0で埋める
-        df['prize'] = df['賞金'].fillna(0)
-        # 1着の着差を0にする
-        df['margin'] = df['着差'].map(lambda x: 0 if x<0 else x)
-        # タイムデータをfloat型に変換
-        df['タイム'].fillna(0, inplace=True)
-        df['time'] = df['タイム'].map(lambda x: int(str(x)[0])*60 + int(str(x)[2:4]) + int(str(x)[5])/10 if x!=0 else 0)
+        # 上り3F
         df['last3F'] = df['上り'].fillna(0).map(lambda x: int(str(x)[0:2]) + int(str(x)[3])/10 if x!=0 else 0)
         # レース情報がないデータを海外レースと仮定し削除する。
         df = df[np.isnan(df['R'])==False]
         df['rece_num'] = df['R'].fillna(0).astype(int)
         df['time_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
         df['ground_state_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
+        df['breeder'].fillna(0, inplace=True)
+        df['owner'].fillna(0, inplace=True)
+        df['trainer'].fillna(0, inplace=True)
+        df['birthday'] = df['birthday'].fillna(0).map(lambda x: re.sub(r"\D", "", x))
         
         #レース展開データ
         #n=1: 最初のコーナー位置, n=4: 最終コーナー位置
@@ -142,14 +140,14 @@ class HorseResults:
         df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(race_type_dict)
         #距離は10の位を切り捨てる
         df['course_len'] = df['距離'].str.extract(r'(\d+)').astype(int) // 100
-        df.drop(['距離', '着差', '賞金', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考'], axis=1, inplace=True)
+        df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考'], axis=1, inplace=True)
         #インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(avg_target_listの要素)
         # 過去の平均値を出したいデータ
-        self.avg_target_list = ['order', 'prize', 'margin', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'time', 'last3F', 'time_idx', 'ground_state_idx']
-        self.past_target_list = ['rece_num'] + self.avg_target_list
+        self.avg_target_list = ['order', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'last3F', 'time_idx', 'ground_state_idx']
+        self.past_target_list = ['rece_num', 'remark'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
 
@@ -203,7 +201,6 @@ class HorseResults:
         self.past_dict = {}
         self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.past_target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
         if chk == 0:
-            print(filtered_df)
             self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
 
     def merge_past(self, results, date, n_samples, chk):
