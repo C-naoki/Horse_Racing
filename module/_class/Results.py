@@ -88,14 +88,25 @@ class Results(DataProcessor):
                             if "年" in text:
                                 df["date"] = [text] * len(df)
                             if "右" in text:
-                                df["turn"] = [1] * len(df)
-                            elif "左" in text:
-                                df["turn"] = [2] * len(df)
-                            else:
                                 df["turn"] = [0] * len(df)
+                            elif "左" in text:
+                                df["turn"] = [1] * len(df)
+                            if "新馬" in text:
+                                df["class"] = [0] * len(df)
+                            elif "未勝利" in text:
+                                df["class"] = [1] * len(df)
+                            elif "1勝クラス" in text:
+                                df["class"] = [2] * len(df)
+                            elif "2勝クラス" in text:
+                                df["class"] = [3] * len(df)
+                            elif "3勝クラス" in text:
+                                df["class"] = [4] * len(df)
+                            elif "オープン" in text:
+                                df["class"] = [5] * len(df)
                         df["race_num"] = [int(race_id[-2:])] * len(df)
                         df["day"] = [int(race_id[8:10])] * len(df)
                         df["kai"] = [int(race_id[6:8])] * len(df)
+                        df["prize"] = [float(soup.find("table", attrs={"summary": "レース結果"}).find_all("td", attrs={"class": re.compile("txt_r")})[4].text.replace(',', ''))] * len(df)
                         #馬ID、騎手IDをスクレイピング
                         horse_id_list = []
                         horse_a_list = soup.find("table", attrs={"summary": "レース結果"}).find_all(
@@ -115,6 +126,7 @@ class Results(DataProcessor):
                         df["jockey_id"] = jockey_id_list
                         #インデックスをrace_idにする
                         df.index = [race_id] * len(df)
+                        df.sort_values('馬番', inplace=True)
                         race_results[race_id] = df
                     #存在しないrace_idを飛ばし次のスクレイピングに移す
                     except IndexError:
@@ -129,27 +141,26 @@ class Results(DataProcessor):
                     except:
                         indexerror_chk = 0
                         break
+                pbar.close()
                 if indexerror_chk == 1:
-                    pbar.close()
                     print("{}回{}日のレースはまだ開催されていません。\n".format(str(race_id)[6:8], str(race_id)[8:10]))
-                    continue
                 elif indexerror_chk == 0:
                     break
                 elif indexerror_chk == -1:
-                    pbar.close()
                     print("対象のレースを全て取得し終わりました。\n")
+            else:
+                continue
+            break
         #pd.DataFrame型にして一つのデータにまとめる
         try:
             race_results_df = pd.concat([race_results[key] for key in race_results])
         except ValueError:
             return pre_race_results
-        if len(pre_race_results.index):
-            return pd.concat([pre_race_results, race_results_df])
-        else:
-            return race_results_df
+        if len(pre_race_results.index): return pd.concat([pre_race_results, race_results_df])
+        else: return race_results_df
     
     #前処理    
-    def preprocessing(self):
+    def preprocessing(self, obj):
         df = self.data.copy()
 
         # 着順に数字以外の文字列が含まれているものを取り除く
@@ -166,8 +177,9 @@ class Results(DataProcessor):
 
         # 単勝をfloatに変換
         df["odds"] = df["単勝"].astype(float)
-        # df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
-        df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
+        if obj == "binary": df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
+        elif obj == "regression": df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
+        elif obj == "lambdarank": df['rank'] = df['着順'].map(lambda x:int(10/x) if x<4 else 0)
         # 距離は10の位を切り捨てる
         df["course_len"] = df["course_len"].astype(float) // 100
         # 障害レースの削除
@@ -180,8 +192,8 @@ class Results(DataProcessor):
         df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         #開催場所
         df['venue'] = df.index.map(lambda x:str(x)[4:6])
-	
-	#6/6出走数追加
+        
+        #6/6出走数追加
         df['n_horses'] = df.index.map(df.index.value_counts())
 
         self.data_p = df
