@@ -3,6 +3,7 @@ import pandas as pd
 import re
 import time
 import requests
+from datetime import datetime
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 from ..functions import update_data
@@ -10,7 +11,7 @@ from environment.variables import *
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder', 'birthday', 'owner', 'trainer']]
+        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder_id', 'birthday', 'owner_id', 'trainer_id']]
         self.preprocessing()
     
     @classmethod
@@ -43,7 +44,7 @@ class HorseResults:
             'pswd': PASS
         }
         session = requests.Session()
-        st=session.post(url_login, data=payload)
+        session.post(url_login, data=payload)
         for horse_id in tqdm(horse_id_list):
             if len(pre_horse_results) and horse_id in pre_horse_results.index:
                 continue
@@ -57,24 +58,30 @@ class HorseResults:
                 if df.columns[0]=='受賞歴':
                     df = pd.read_html(url)[4]
                 soup = BeautifulSoup(html.content, "html.parser")
-                temp = soup.find_all('table')[1].find_all('td')
-                df['birthday'] = [temp[0].text] * len(df)
-                df['trainer'] = [re.findall(r'\d+', temp[1].find('a').get('href'))[0]] * len(df)
-                df['owner'] = [re.findall(r'\d+', temp[2].find('a').get('href'))[0]] * len(df)
-                df['breeder'] = [re.findall(r'\d+', temp[3].find('a').get('href'))[0]] * len(df)
-                df.index = [horse_id] * len(df)
-                horse_results[horse_id] = df
+                info_list = soup.find_all('table')[1].find_all('td')
+                for info in info_list:
+                    text = info.text
+                    if "年" in text and "月" in text and "日" in text:
+                        df['birthday'] = [int(datetime.strptime(text, "%Y年%m月%d日").strftime('%Y%m%d'))] * len(df)
+                    try:
+                        if "/trainer/" in info.find('a').get('href'):
+                            df['trainer_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                        if "/owner/" in info.find('a').get('href'):
+                            df['owner_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                        if "/breeder/" in info.find('a').get('href'):
+                            df['breeder_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                    except:
+                        continue
+                if len(df.columns) == 32:
+                    df.index = [horse_id] * len(df)
+                    horse_results[horse_id] = df
             except IndexError:
                 continue
             except Exception as e:
                 print(e)
-                if str(e) == "'NoneType' object has no attribute 'get'":
-                    continue
-                else:
-                    break
+                break
             except:
                 break
-
         # pd.DataFrame型にして一つのデータにまとめる
         try:       
             horse_results_df = pd.concat([horse_results[key] for key in horse_results])
@@ -101,9 +108,9 @@ class HorseResults:
         df['rece_num'] = df['R'].fillna(0).astype(int)
         df['time_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
         df['ground_state_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
-        df['breeder'].fillna(0, inplace=True)
-        df['owner'].fillna(0, inplace=True)
-        df['trainer'].fillna(0, inplace=True)
+        df['breeder_id'].fillna(0, inplace=True)
+        df['owner_id'].fillna(0, inplace=True)
+        df['trainer_id'].fillna(0, inplace=True)
         df['birthday'] = df['birthday'].fillna(0).map(lambda x: re.sub(r"\D", "", x))
         
         #レース展開データ
