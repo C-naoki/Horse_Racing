@@ -48,8 +48,8 @@ class HorseResults:
         for horse_id in tqdm(horse_id_list):
             if len(pre_horse_results) and horse_id in pre_horse_results.index:
                 continue
-            time.sleep(1)
             try:
+                time.sleep(1)
                 url = 'https://db.netkeiba.com/horse/' + horse_id
                 html = session.get(url)
                 html.encoding = "EUC-JP"
@@ -61,7 +61,7 @@ class HorseResults:
                 info_list = soup.find_all('table')[1].find_all('td')
                 for info in info_list:
                     text = info.text
-                    if "年" in text and "月" in text and "日" in text:
+                    if re.sub('[年月日]', '', text).isdigit():
                         df['birthday'] = [int(datetime.strptime(text, "%Y年%m月%d日").strftime('%Y%m%d'))] * len(df)
                     try:
                         if "/trainer/" in info.find('a').get('href'):
@@ -75,6 +75,8 @@ class HorseResults:
                 if len(df.columns) == 32:
                     df.index = [horse_id] * len(df)
                     horse_results[horse_id] = df
+                else:
+                    print("did not scrape {}".format(horse_id))
             except IndexError:
                 continue
             except Exception as e:

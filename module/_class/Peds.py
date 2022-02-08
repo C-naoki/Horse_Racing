@@ -39,8 +39,8 @@ class Peds:
         for horse_id in tqdm(horse_id_list):
             if len(pre_ped_results) and horse_id in pre_ped_results.index:
                 continue
-            time.sleep(1)
             try:
+                time.sleep(1)
                 transrate_num = [0, 2, 6, 14, 30, 31, 15, 32, 33, 7, 16, 34, 35, 17, 36, 37, 3, 8, 18, 38, 39, 19, 40, 41, 9, 20, 42, 43, 21, 44, 45, 1, 4, 10, 22, 46, 47, 23, 48, 49, 11, 24, 50, 51, 25, 52, 53, 5, 12, 26, 54, 55, 27, 56, 57, 13, 28, 58, 59, 29, 60, 61]
                 ped = pd.Series([0] * len(transrate_num)).rename(horse_id)
                 url = "https://db.netkeiba.com/horse/ped/" + horse_id
