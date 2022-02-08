@@ -60,8 +60,8 @@ class Results(DataProcessor):
                     pbar.set_description('Scrape Race data in "{} {}回"'.format([k for k, v in place_dict.items() if v == str(place).zfill(2)][0], kai))
                     if len(pre_race_results) and race_id in set(pre_race_results.index):
                         continue
-                    time.sleep(1)
                     try:
+                        time.sleep(1)
                         url = "https://db.netkeiba.com/race/" + race_id
                         #メインとなるテーブルデータを取得
                         df = pd.read_html(url)[0]
@@ -91,15 +91,17 @@ class Results(DataProcessor):
                                 df["turn"] = [0] * len(df)
                             elif "左" in text:
                                 df["turn"] = [1] * len(df)
+                            elif "直線" in text:
+                                df["turn"] = [2] * len(df)
                             if "新馬" in text:
                                 df["class"] = [0] * len(df)
                             elif "未勝利" in text:
                                 df["class"] = [1] * len(df)
-                            elif "1勝クラス" in text:
+                            elif "1勝クラス" in text or "500万下" in text:
                                 df["class"] = [2] * len(df)
-                            elif "2勝クラス" in text:
+                            elif "2勝クラス" in text or "1000万下" in text:
                                 df["class"] = [3] * len(df)
-                            elif "3勝クラス" in text:
+                            elif "3勝クラス" in text or "1600万下" in text:
                                 df["class"] = [4] * len(df)
                             elif "オープン" in text:
                                 df["class"] = [5] * len(df)
