@@ -36,11 +36,11 @@ if __name__ == '__main__':
     # カテゴリ変数の処理
     r.process_categorical()
 
-    # 訓練データと検証データに分割
+    # 説明変数と目的変数に分割
     X = r.data_c.drop(['rank', 'date', 'odds', 'jockey_id'], axis=1)
     y = r.data_c['rank']
 
-    # クエリの作成
+    # ランキング学習のためのクエリの作成
     query = list()
     for i in X.groupby(level=0):
         query.append(len(i[1]))
@@ -175,14 +175,17 @@ if __name__ == '__main__':
             # 表の左上に開催地の追加
             ws['A1'] = venue_name[venue_id]
             ws['A1'].font = Font(bold=True)
+            # 通常の線と二重線を用意
             side1 = Side(style='thin', color='000000')
             side2 = Side(style='double', color='000000')
             border1 = Border(top=side1, bottom=side1, left=side1, right=side1)
             border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
             for col in ws.columns:
                 for i, cell in enumerate(col):
-                    if cell.coordinate[0] == 'I' or cell.coordinate[0] == 'C': ws[cell.coordinate].border = border2 # 二重線の記入
-                    else: ws[cell.coordinate].border = border1 # 線の記入
+                    # 二重線の記入
+                    if cell.coordinate[0] == 'I' or cell.coordinate[0] == 'C': ws[cell.coordinate].border = border2
+                    # 線の記入
+                    else: ws[cell.coordinate].border = border1
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
                     if ws[cell.coordinate].value == 'A' or (cell.coordinate[0] == 'J' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)") or (cell.coordinate[0] == 'M' and sanrenpuku_chk[i] == 3) or (cell.coordinate[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 3):
                         ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
@@ -195,10 +198,10 @@ if __name__ == '__main__':
                     if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
                         ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[cell.coordinate].font = Font(color="ffffff")
+            # 馬のスコアごとにカラーリング
             for row in ws.rows:
                 if 1 < int(row[0].coordinate[1:]) < 14:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)["score"].head(6)):
-                        # 馬のスコアごとに色付け
                         if score > 2.4:
                             ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                         elif score > 2:
@@ -217,15 +220,16 @@ if __name__ == '__main__':
             all_tansho_money = 0
             all_sanrentan_money = 0
             all_sanrenpuku_money = 0
+            # 各ランク毎の結果を集計
             for idx in ["A", "B", "C"]:
                 tansho_win = np.zeros(4, dtype = int) # 勝ち馬を予測できた数
                 tansho_cnt = 0 # ランク毎の馬の数
                 tansho_money = 0 # 単勝の回収率
-                sanrenpuku_win = 0
-                sanren_cnt = 0
-                sanrenpuku_money = 0
-                sanrentan_win = 0
-                sanrentan_money = 0
+                sanrenpuku_win = 0 # 三連複的中数
+                sanren_cnt = 0 # 三連系を購入すると決定した数
+                sanrenpuku_money = 0 # 三連複回収金額
+                sanrentan_win = 0 # 三連単的中数
+                sanrentan_money = 0 # 三連単回収金額
                 wb = xl.load_workbook(excel_path)
                 ws = wb[sheet_name[venue_id]]
                 for i in range(ws.max_row):
@@ -266,7 +270,7 @@ if __name__ == '__main__':
                 wb.close()
                 
             return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), '{}%'.format(round(m.div(all_tansho_money, all_tansho_cnt), 1)), '{}%'.format(round(m.div(all_sanrentan_money, 20*all_sanren_cnt), 1)), '{}%'.format(round(m.div(all_sanrenpuku_money, 20*all_sanren_cnt), 1))]
-            # return_dfの追記
+            # return_dfをexcelに追記
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
             writer = pd.ExcelWriter(excel_path, engine='openpyxl')
@@ -282,6 +286,7 @@ if __name__ == '__main__':
                 for i, cell in enumerate(col):
                     if cell.coordinate[1:]!='14' and int(cell.coordinate[1:])<=19 and int(column_index_from_string(cell.coordinate[0]))<=8: ws[cell.coordinate].border = border1
                     max_length = max(max_length, len(str(cell.value)))
+                    # 必要箇所にカラーリング
                     if (cell.coordinate[0] == 'A' and cell.coordinate[1:] != '14') or cell.coordinate[1:] == '15' and column_index_from_string(cell.coordinate[0])<=8:
                         ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[cell.coordinate].font = Font(color="ffffff")
@@ -307,7 +312,7 @@ if __name__ == '__main__':
             writer.save()
             wb.save(excel_path)
             wb.close()
-        # (まだレースが開催されていない場合)xlsxファイルに保存するデータの表示
+        # (まだレースが開催されていない場合)予想結果の表示
         else:
             print("<"+venue_name[venue_id]+">")
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
