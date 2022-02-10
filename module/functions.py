@@ -66,7 +66,8 @@ def xlsx2pdf(pdf_file, ws):
     for row in ws.rows:
         row_list = []
         for cell in row:
-            row_list.append(cell.value)
+            if cell.number_format == '0.00%': row_list.append(str(cell.value)+'%')
+            else: row_list.append(cell.value)
         data.append(row_list)
     tt = Table(data)
     tt.setStyle(TableStyle([

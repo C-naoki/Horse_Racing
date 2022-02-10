@@ -182,32 +182,34 @@ if __name__ == '__main__':
             border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
             for col in ws.columns:
                 for i, cell in enumerate(col):
+                    coord = cell.coordinate
                     # 二重線の記入
-                    if cell.coordinate[0] == 'I' or cell.coordinate[0] == 'C': ws[cell.coordinate].border = border2
+                    if coord[0] == 'I' or coord[0] == 'C': ws[coord].border = border2
                     # 線の記入
-                    else: ws[cell.coordinate].border = border1
+                    else: ws[coord].border = border1
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
-                    if ws[cell.coordinate].value == 'A' or (cell.coordinate[0] == 'J' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)") or (cell.coordinate[0] == 'M' and sanrenpuku_chk[i] == 3) or (cell.coordinate[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 3):
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
+                    if ws[coord].value == 'A' or (coord[0] == 'J' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)") or (coord[0] == 'M' and sanrenpuku_chk[i] == 3) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 3):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                     # ランクB及び着順の予想が3着以内及び三連複の3頭中2頭的中した時、セルを水色にする
-                    if ws[cell.coordinate].value == 'B' or (cell.coordinate[0] == 'J' and (ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(2)" or ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(3)")) or (cell.coordinate[0] == 'M' and sanrenpuku_chk[i] == 2) or (cell.coordinate[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 2):
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
+                    if ws[coord].value == 'B' or (coord[0] == 'J' and (ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(2)" or ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(3)")) or (coord[0] == 'M' and sanrenpuku_chk[i] == 2) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 2):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
                     # ランクC及び及び三連複の3頭中1頭のみ的中した時、セルを灰色にする
-                    if ws[cell.coordinate].value == 'C' or (cell.coordinate[0] == 'M' and sanrenpuku_chk[i] == 1) or (cell.coordinate[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 1):
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                    if cell.coordinate[0] == 'A' or cell.coordinate[1:] == '1':
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[cell.coordinate].font = Font(color="ffffff")
+                    if ws[coord].value == 'C' or (coord[0] == 'M' and sanrenpuku_chk[i] == 1) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 1):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                    if coord[0] == 'A' or coord[1:] == '1':
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
+                        ws[coord].font = Font(color="ffffff")
             # 馬のスコアごとにカラーリング
             for row in ws.rows:
                 if 1 < int(row[0].coordinate[1:]) < 14:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)["score"].head(6)):
+                        coord = cell.coordinate
                         if score > 2.4:
-                            ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
+                            ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                         elif score > 2:
-                            ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
+                            ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
                         elif score > 1:
-                            ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                            ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
             wb.save(excel_path)
             wb.close()
 
@@ -257,7 +259,7 @@ if __name__ == '__main__':
                         if ws['L{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                             sanrentan_win += 1
                             sanrentan_money += ws['O{}'.format(i+1)].value
-                return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), '{}%'.format(round(m.div(tansho_money, tansho_cnt), 1)), '{}%'.format(round(m.div(sanrentan_money, 20*sanren_cnt), 1)), '{}%'.format(round(m.div(sanrenpuku_money, 20*sanren_cnt), 1))]
+                return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), m.div(tansho_money, tansho_cnt), m.div(sanrentan_money, 20*sanren_cnt), m.div(sanrenpuku_money, 20*sanren_cnt)]
                 all_win += tansho_win
                 all_sanrentan_win += sanrentan_win
                 all_sanrenpuku_win += sanrenpuku_win
@@ -269,7 +271,7 @@ if __name__ == '__main__':
                 wb.save(excel_path)
                 wb.close()
                 
-            return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), '{}%'.format(round(m.div(all_tansho_money, all_tansho_cnt), 1)), '{}%'.format(round(m.div(all_sanrentan_money, 20*all_sanren_cnt), 1)), '{}%'.format(round(m.div(all_sanrenpuku_money, 20*all_sanren_cnt), 1))]
+            return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), m.div(all_tansho_money, all_tansho_cnt), m.div(all_sanrentan_money, 20*all_sanren_cnt), m.div(all_sanrenpuku_money, 20*all_sanren_cnt)]
             # return_dfをexcelに追記
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
@@ -284,25 +286,28 @@ if __name__ == '__main__':
             for col in ws.columns:
                 max_length = 0
                 for i, cell in enumerate(col):
-                    if cell.coordinate[1:]!='14' and int(cell.coordinate[1:])<=19 and int(column_index_from_string(cell.coordinate[0]))<=8: ws[cell.coordinate].border = border1
+                    coord = cell.coordinate
+                    if coord[1:]!='14' and int(coord[1:])<=19 and int(column_index_from_string(coord[0]))<=8: ws[coord].border = border1
                     max_length = max(max_length, len(str(cell.value)))
                     # 必要箇所にカラーリング
-                    if (cell.coordinate[0] == 'A' and cell.coordinate[1:] != '14') or cell.coordinate[1:] == '15' and column_index_from_string(cell.coordinate[0])<=8:
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[cell.coordinate].font = Font(color="ffffff")
-                    if ws[cell.coordinate].value == 'A':
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
-                        ws[cell.coordinate].font = Font(color="000000")
-                    if ws[cell.coordinate].value == 'B':
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
-                        ws[cell.coordinate].font = Font(color="000000")
-                    if ws[cell.coordinate].value == 'C':
-                        ws[cell.coordinate].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                        ws[cell.coordinate].font = Font(color="000000")
+                    if (coord[0] == 'A' and coord[1:] != '14') or coord[1:] == '15' and column_index_from_string(coord[0])<=8:
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
+                        ws[coord].font = Font(color="ffffff")
+                    if ws[coord].value == 'A':
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
+                        ws[coord].font = Font(color="000000")
+                    if ws[coord].value == 'B':
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
+                        ws[coord].font = Font(color="000000")
+                    if ws[coord].value == 'C':
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                        ws[coord].font = Font(color="000000")
                     # 文字を中心に配置する
                     cell.alignment = Alignment(horizontal = 'center', 
                                         vertical = 'center',
                                         wrap_text = False)
+                    if (coord[0] == 'F' or coord[0] == 'G' or coord[0] == 'H') and 16 <= int(coord[1:]) <= 19:
+                        cell.number_format = '0.00%'
                 adjusted_width = max_length * 2.08
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
             # xlsxをpdfに変換し、pdfディレクトリに保存する
