@@ -38,11 +38,15 @@ class DataProcessor:
         n_samples_list : list, default [5, 9, 'all']
             過去何レース分追加するか
         """
+
         self.data_h = self.data_p.copy()
+        temp_df = hr.horse_results[['breeder_id', 'birthday', 'owner_id', 'trainer_id']]
+        temp_df = temp_df[~temp_df.duplicated()]
+        self.data_h = self.data_h.merge(temp_df, left_on='horse_id', right_index=True, how='left')
         for i, n_samples in enumerate(n_samples_list2):
             self.data_h = hr.merge_past_all(self.data_h, n_samples=n_samples, chk=i)
-        for n_samples in n_samples_list1:
-            self.data_h = hr.merge_average_all(self.data_h, n_samples=n_samples)
+        # for n_samples in n_samples_list1:
+        #     self.data_h = hr.merge_average_all(self.data_h, n_samples=n_samples)
         
 	#6/6追加： 馬の出走間隔追加
         self.data_h['interval'] = (self.data_h['date'] - self.data_h['latest']).dt.days
