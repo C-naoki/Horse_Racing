@@ -5,6 +5,7 @@ import time
 import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
+from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 from ..functions import update_data
 from environment.variables import *
@@ -65,18 +66,15 @@ class HorseResults:
                         df['birthday'] = [int(datetime.strptime(text, "%Y年%m月%d日").strftime('%Y%m%d'))] * len(df)
                     try:
                         if "/trainer/" in info.find('a').get('href'):
-                            df['trainer_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                            df['trainer_id'] = [re.sub('trainer|/', '', info.find('a').get('href'))] * len(df)
                         if "/owner/" in info.find('a').get('href'):
-                            df['owner_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                            df['owner_id'] = [re.sub('owner|/', '', info.find('a').get('href'))] * len(df)
                         if "/breeder/" in info.find('a').get('href'):
-                            df['breeder_id'] = [re.findall(r'\d+', info.find('a').get('href'))[0]] * len(df)
+                            df['breeder_id'] = [re.sub('breeder|/', '', info.find('a').get('href'))] * len(df)
                     except:
                         continue
-                if len(df.columns) == 32:
-                    df.index = [horse_id] * len(df)
-                    horse_results[horse_id] = df
-                else:
-                    print("did not scrape {}".format(horse_id))
+                df.index = [horse_id] * len(df)
+                horse_results[horse_id] = df
             except IndexError:
                 continue
             except Exception as e:
@@ -105,15 +103,12 @@ class HorseResults:
         df["date"] = pd.to_datetime(df["日付"])
         # 上り3F
         df['last3F'] = df['上り'].fillna(0).map(lambda x: int(str(x)[0:2]) + int(str(x)[3])/10 if x!=0 else 0)
-        # レース情報がないデータを海外レースと仮定し削除する。
+        # レース情報がないデータはほとんどの情報が欠落しているため削除する。
         df = df[np.isnan(df['R'])==False]
         df['rece_num'] = df['R'].fillna(0).astype(int)
         df['time_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
         df['ground_state_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
-        df['breeder_id'].fillna(0, inplace=True)
-        df['owner_id'].fillna(0, inplace=True)
-        df['trainer_id'].fillna(0, inplace=True)
-        df['birthday'] = df['birthday'].fillna(0).map(lambda x: re.sub(r"\D", "", x))
+        df['birthday'] = df['birthday'].astype(int)
         
         #レース展開データ
         #n=1: 最初のコーナー位置, n=4: 最終コーナー位置
@@ -131,6 +126,8 @@ class HorseResults:
                 return 2
             elif x == '躓く':
                 return 3
+            elif x == '好発':
+                return 4
             else:
                 return 0
         # first_corner: 1コーナー(約1/5)通過時の着順
@@ -153,12 +150,21 @@ class HorseResults:
         #インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
+        # str型のデータをラベルエンコーディングする
+        self.encode()
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(avg_target_listの要素)
         # 過去の平均値を出したいデータ
         self.avg_target_list = ['order', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'last3F', 'time_idx', 'ground_state_idx']
         self.past_target_list = ['rece_num', 'remark'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
+
+    def encode(self):
+        df = self.horse_results.copy()
+        for column in ["owner_id", "trainer_id", "breeder_id"]:
+            df[column] = LabelEncoder().fit_transform(df[column].fillna('Na'))
+            df[column] = df[column].astype('category')
+        self.horse_results = df
 
     #n_samplesレース分馬ごとに平均する
     def average(self, horse_id_list, date, n_samples='all'):
