@@ -66,7 +66,7 @@ def xlsx2pdf(pdf_file, ws):
     for row in ws.rows:
         row_list = []
         for cell in row:
-            if cell.number_format == '0.00%': row_list.append(str(cell.value)+'%')
+            if cell.number_format == '0.00%' and cell.value != '-': row_list.append(str(round(cell.value*100, 2))+'%')
             else: row_list.append(cell.value)
         data.append(row_list)
     tt = Table(data)
@@ -111,7 +111,7 @@ def pdf2png(pdf_path, dpi=200, fmt='png'):
     page[0].save(png_path, fmt)
 
 def div(a, b):
-    if b == 0 or a == 0:
-        return 0
+    if b == 0:
+        return '-'
     else:
-        return a / b
+        return round(a / b, 4)
