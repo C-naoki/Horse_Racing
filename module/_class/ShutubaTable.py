@@ -51,6 +51,20 @@ class ShutubaTable(DataProcessor):
                     df['race_type'] = ['障害'] * len(df)
                 if 'ダ' in text:
                     df['race_type'] = ['ダート'] * len(df)
+                if "右" in text:
+                    df["turn"] = [1] * len(df)
+                elif "左" in text:
+                    df["turn"] = [2] * len(df)
+            texts = soup.find('div', attrs={'class': 'RaceData02'}).text
+            texts = re.findall(r'\w+', texts)
+            for text in texts:
+                if '賞金' in text:
+                    df["prize"] = [float(texts[texts.index(text)+1])] * len(df)
+                if text in ["新馬", "未勝利", "１勝クラス", "２勝クラス", "３勝クラス", "オープン"]:
+                    df['class'] = [["新馬", "未勝利", "１勝クラス", "２勝クラス", "３勝クラス", "オープン"].index(text)] * len(df)
+            df["race_num"] = [int(race_id[-2:])] * len(df)
+            df["day"] = [int(race_id[8:10])] * len(df)
+            df["kai"] = [int(race_id[6:8])] * len(df)
             df['date'] = [date] * len(df)
             # horse_id
             horse_id_list = []
@@ -74,24 +88,24 @@ class ShutubaTable(DataProcessor):
     def preprocessing(self):
         df = self.data.copy()
         
-        df["性"] = df["性齢"].map(lambda x: str(x)[0])
-        df["年齢"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
+        df["sex"] = df["性齢"].map(lambda x: str(x)[0])
+        df["age"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
         
         df["date"] = pd.to_datetime(df["date"])
         df["month_sin"] = df["date"].map(lambda x: np.sin(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         
-        df['枠'] = df['枠'].astype(int)
-        df['馬番'] = df['馬番'].astype(int)
-        df['斤量'] = df['斤量'].astype(int)
+        df['bracket_num'] = df['枠'].astype(int)
+        df['horse_num'] = df['馬番'].astype(int)
+        df['weight_carry'] = df['斤量'].astype(int)
 
-        df['開催'] = df.index.map(lambda x:str(x)[4:6])
+        df['venue'] = df.index.map(lambda x:str(x)[4:6])
 
         #6/6出走数追加
         df['n_horses'] = df.index.map(df.index.value_counts())
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 使用する列を選択
-        df = df[['枠', '馬番', '斤量', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', '性', '年齢','開催', 'n_horses', 'month_cos', 'month_sin']]
+        df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
         
         self.data_p = df.rename(columns={'枠': '枠番'})
