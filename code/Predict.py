@@ -30,14 +30,14 @@ if __name__ == '__main__':
     hr = c.HorseResults(_dat.horse_results["overall"])
     r.merge_horse_results(hr)
     # 5世代分の血統データの追加
-    p = c.Peds(_dat.ped_results["overall"])
-    p.encode()
-    r.merge_peds(p.peds_e)
+    # p = c.Peds(_dat.ped_results["overall"])
+    # p.encode()
+    # r.merge_peds(p.peds_e)
     # カテゴリ変数の処理
     r.process_categorical()
 
     # 説明変数と目的変数に分割
-    X = r.data_c.drop(['rank', 'date', 'odds', 'jockey_id'], axis=1)
+    X = r.data_c.drop(drop_list+["odds", "rank"], axis=1)
     y = r.data_c['rank']
 
     # ランキング学習のためのクエリの作成
@@ -45,10 +45,8 @@ if __name__ == '__main__':
     for i in X.groupby(level=0):
         query.append(len(i[1]))
     # lightgbmでの学習
-    lgb_clf_1 = lgb.LGBMRanker(**params_1)
-    lgb_clf_1.fit(X.values, y.values, group=query)
-    lgb_clf_2 = lgb.LGBMRanker(**params_2)
-    lgb_clf_2.fit(X.values, y.values, group=query)
+    lgb_clf = lgb.LGBMRanker(**params)
+    lgb_clf.fit(X.values, y.values, group=query)
 
     # 出馬表データのスクレイピング
     # 欲しい出馬表のrace_id, 日付を引数とする。
@@ -59,21 +57,15 @@ if __name__ == '__main__':
         st = c.ShutubaTable.scrape(race_id_list=race_id_list[venue_id][venue_id[4:6]][venue_id[6:8]], date=date, place=venue_id[4:6])
         st.preprocessing()
         st.merge_horse_results(hr)
-        st.merge_peds(p.peds_e)
+        # st.merge_peds(p.peds_e)
         st.process_categorical(r.le_horse, r.le_jockey)
         # ModelEvaluator
-        me1 = c.ModelEvaluator(lgb_clf_1, tables_path, kind=1, obj=objective)
-        me2 = c.ModelEvaluator(lgb_clf_2, tables_path, kind=1, obj=objective)
-        X_fact = st.data_c.drop(['date', 'jockey_id'], axis=1)
+        me = c.ModelEvaluator(lgb_clf, tables_path, kind=1, obj=objective)
+        X_fact = st.data_c.drop(drop_list, axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
-        pred_1 = me1.predict_proba(X_fact, train=False)
-        pred_2 = me2.predict_proba(X_fact, train=False)
+        pred = me.predict_proba(X_fact, train=False)
         proba_table = st.data_c[['horse_num']].astype('int').copy()
-        proba_table['score_1'] = pred_1.astype('float64')
-        proba_table['score'] = pred_2.astype('float64')
-        for i, proba in enumerate(proba_table.groupby(level=0)):
-            proba[1].loc[proba[1]['horse_num']==int(proba[1].sort_values('score_1', ascending = False).iloc[0, 0]), 'score'] = proba[1].loc[proba[1]['horse_num']==int(proba[1].sort_values('score_1', ascending = False).iloc[0, 0]), 'score_1']
-        proba_table = proba_table[['horse_num', 'score']]
+        proba_table['score'] = pred.astype('float64')
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
             return_chk = 1
@@ -106,11 +98,11 @@ if __name__ == '__main__':
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
             # 三連複のランクの決定
-            if len(race_proba["score"][race_proba["score"]>=1])>=6:
+            if len(race_proba["score"][race_proba["score"]>=1.5])>=3:
                 triple_rank = "A"
-            elif len(race_proba["score"][race_proba["score"]>=1])>=4:
+            elif len(race_proba["score"][race_proba["score"]>=1.5])>=2:
                 triple_rank = "B"
-            elif len(race_proba["score"][race_proba["score"]>=1])>=2:
+            elif len(race_proba["score"][race_proba["score"]>=1.5])>=1:
                 triple_rank = "C"
             else:
                 triple_rank = "-"
@@ -159,10 +151,10 @@ if __name__ == '__main__':
                 if sanrenpuku_chk[i+1] == 3 and real_arrival[0] == '1': sanrentan_money = sanrentan_df.loc[proba[0], "return"]
                 else: sanrentan_money = 0
                 # データをdfに追加
-                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, str(race_proba.iat[0, 0])+" ("+real_arrival[0]+")", str(race_proba.iat[1, 0])+" ("+real_arrival[1]+")", str(race_proba.iat[2, 0])+" ("+real_arrival[2]+")", str(race_proba.iat[3, 0])+" ("+real_arrival[3]+")", str(race_proba.iat[4, 0])+" ("+real_arrival[4]+")", str(race_proba.iat[5, 0])+" ("+real_arrival[5]+")", tansho_odds, sanrentan_results, sanrentan_odds, sanrenpuku_odds, tansho_money, sanrentan_money, sanrenpuku_money]
+                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, str(race_proba.iat[0, 0])+" ("+real_arrival[0]+")", str(race_proba.iat[1, 0])+" ("+real_arrival[1]+")", str(race_proba.iat[2, 0])+" ("+real_arrival[2]+")", str(race_proba.iat[3, 0])+" ("+real_arrival[3]+")", str(race_proba.iat[4, 0])+" ("+real_arrival[4]+")", str(race_proba.iat[5, 0])+" ("+real_arrival[5]+")", proba[1]['horse_num'][-1], tansho_odds, sanrentan_results, sanrentan_odds, sanrenpuku_odds, tansho_money, sanrentan_money, sanrenpuku_money]
             else:
                 # データをdfに追加
-                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0]]
+                predict_df.loc[race_num+"R"] = [favorite_rank, triple_rank, race_proba.iat[0, 0], race_proba.iat[1, 0], race_proba.iat[2, 0], race_proba.iat[3, 0], race_proba.iat[4, 0], race_proba.iat[5, 0], proba[1]['horse_num'][-1]]
 
         if return_chk:
             # 予測及びオッズデータをxlsxファイルに書き込む
@@ -184,17 +176,17 @@ if __name__ == '__main__':
                 for i, cell in enumerate(col):
                     coord = cell.coordinate
                     # 二重線の記入
-                    if coord[0] == 'I' or coord[0] == 'C': ws[coord].border = border2
+                    if coord[0] == 'J' or coord[0] == 'C': ws[coord].border = border2
                     # 線の記入
                     else: ws[coord].border = border1
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
-                    if ws[coord].value == 'A' or (coord[0] == 'J' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)") or (coord[0] == 'M' and sanrenpuku_chk[i] == 3) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 3):
+                    if ws[coord].value == 'A' or (coord[0] == 'K' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)") or (coord[0] == 'N' and sanrenpuku_chk[i] == 3) or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 3):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                     # ランクB及び着順の予想が3着以内及び三連複の3頭中2頭的中した時、セルを水色にする
-                    if ws[coord].value == 'B' or (coord[0] == 'J' and (ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(2)" or ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(3)")) or (coord[0] == 'M' and sanrenpuku_chk[i] == 2) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 2):
+                    if ws[coord].value == 'B' or (coord[0] == 'K' and (ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(2)" or ws[list(ws.columns)[3][i].coordinate].value[-3:]=="(3)")) or (coord[0] == 'N' and sanrenpuku_chk[i] == 2) or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 2):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
                     # ランクC及び及び三連複の3頭中1頭のみ的中した時、セルを灰色にする
-                    if ws[coord].value == 'C' or (coord[0] == 'M' and sanrenpuku_chk[i] == 1) or (coord[0] == 'L' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 1):
+                    if ws[coord].value == 'C' or (coord[0] == 'N' and sanrenpuku_chk[i] == 1) or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =="(1)" and sanrenpuku_chk[i] == 1):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
                     if coord[0] == 'A' or coord[1:] == '1':
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
@@ -241,7 +233,7 @@ if __name__ == '__main__':
                         # True: 単勝予測成功
                         if ws['D{}'.format(i+1)].value[-3:] == "(1)":
                             tansho_win[0] += 1
-                            tansho_money += ws['N{}'.format(i+1)].value
+                            tansho_money += ws['O{}'.format(i+1)].value
                         elif ws['D{}'.format(i+1)].value[-3:] == "(2)":
                             tansho_win[1] += 1
                         elif ws['D{}'.format(i+1)].value[-3:] == "(3)":
@@ -252,14 +244,14 @@ if __name__ == '__main__':
                     if ws['C{}'.format(i+1)].value == idx:
                         sanren_cnt += 1
                         # True: 三連複予測成功
-                        if ws['M{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                        if ws['N{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                             sanrenpuku_win += 1
-                            sanrenpuku_money += ws['P{}'.format(i+1)].value
+                            sanrenpuku_money += ws['Q{}'.format(i+1)].value
                         # True: 三連単予測成功
-                        if ws['L{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                        if ws['M{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                             sanrentan_win += 1
-                            sanrentan_money += ws['O{}'.format(i+1)].value
-                return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), m.div(tansho_money, tansho_cnt), m.div(sanrentan_money, 20*sanren_cnt), m.div(sanrenpuku_money, 20*sanren_cnt)]
+                            sanrentan_money += ws['P{}'.format(i+1)].value
+                return_df.loc[idx] = [str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]), str(tansho_win[0])+'/'+str(tansho_cnt), str(sanrentan_win)+'/'+str(sanren_cnt), str(sanrenpuku_win)+'/'+str(sanren_cnt), m.div(tansho_money, 100*tansho_cnt), m.div(sanrentan_money, 2000*sanren_cnt), m.div(sanrenpuku_money, 2000*sanren_cnt)]
                 all_win += tansho_win
                 all_sanrentan_win += sanrentan_win
                 all_sanrenpuku_win += sanrenpuku_win
@@ -271,7 +263,7 @@ if __name__ == '__main__':
                 wb.save(excel_path)
                 wb.close()
                 
-            return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), m.div(all_tansho_money, all_tansho_cnt), m.div(all_sanrentan_money, 20*all_sanren_cnt), m.div(all_sanrenpuku_money, 20*all_sanren_cnt)]
+            return_df.loc["全体"] = [str(all_win[0])+'-'+str(all_win[1])+'-'+str(all_win[2])+'-'+str(all_win[3]), str(all_win[0])+'/'+str(all_tansho_cnt), str(all_sanrentan_win)+'/'+str(all_sanren_cnt), str(sanrenpuku_win)+'/'+str(all_sanren_cnt), m.div(all_tansho_money, 100*all_tansho_cnt), m.div(all_sanrentan_money, 2000*all_sanren_cnt), m.div(all_sanrenpuku_money, 2000*all_sanren_cnt)]
             # return_dfをexcelに追記
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
@@ -310,10 +302,14 @@ if __name__ == '__main__':
                         cell.number_format = '0.00%'
                 adjusted_width = max_length * 2.08
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
+            # ディレクトリを自動作成
+            if not os.path.isdir(dir_path):
+                os.makedirs(dir_path)
+                os.makedirs(dir_path.replace('pdf', 'png'))
             # xlsxをpdfに変換し、pdfディレクトリに保存する
-            m.xlsx2pdf(pdf_path[venue_id], ws)
+            m.xlsx2pdf(file_path[venue_id], ws)
             # pdfをpngに変換し、pngディレクトリに保存する
-            m.pdf2png(pdf_path[venue_id])
+            m.pdf2png(file_path[venue_id])
             writer.save()
             wb.save(excel_path)
             wb.close()
@@ -323,4 +319,4 @@ if __name__ == '__main__':
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
         
     # 出力結果が得られた要因
-    print(me1.feature_importance(X))
+    print(me.feature_importance(X))
