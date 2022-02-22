@@ -1,9 +1,12 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from openpyxl.styles import PatternFill
+import openpyxl as xl
+from openpyxl.styles import PatternFill, Font
 from openpyxl.utils import column_index_from_string
+from openpyxl.styles.borders import Border, Side
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
@@ -115,3 +118,88 @@ def div(a, b):
         return '-'
     else:
         return round(a / b, 4)
+
+def make_total_sheet(total, excel_path, pdf_path):
+    wb = xl.load_workbook(excel_path)
+    columns=['単勝A', '三連単A', '三連複A', '単勝B', '三連単B', '三連複B', '単勝C', '三連単C', '三連複C', '単勝', '三連単', '三連複']
+    df = pd.DataFrame(columns = columns)
+    sheetnames = list(wb.sheetnames)
+    if total in wb.sheetnames: sheetnames.remove(total)
+    for name in sheetnames:
+        ws_ = wb[name]
+        tansho_rank = {'A': 0, 'B': 0, 'C': 0, '-': 0}
+        sanren_rank = {'A': 0, 'B': 0, 'C': 0, '-': 0}  
+        for i in range(2, 14):
+            tansho_rank[ws.cell(row=i, column=2).value] += 100
+            sanren_rank[ws.cell(row=i, column=3).value] += 2000
+        s = pd.Series([
+            ws_['F16'].value,
+            ws_['G16'].value,
+            ws_['H16'].value,
+            ws_['F17'].value,
+            ws_['G17'].value,
+            ws_['H17'].value,
+            ws_['F18'].value,
+            ws_['G18'].value,
+            ws_['H18'].value,
+            ws_['F19'].value,
+            ws_['G19'].value,
+            ws_['H19'].value
+            ], name=name, index=columns).replace('-', np.nan)
+        s = s-1
+        s["単勝A"] *= tansho_rank["A"]
+        s["単勝B"] *= tansho_rank["B"]
+        s["単勝C"] *= tansho_rank["C"]
+        s["単勝"] *= (1200-tansho_rank["-"])
+        s["三連複A"] *= sanren_rank["A"]
+        s["三連複B"] *= sanren_rank["B"]
+        s["三連複C"] *= sanren_rank["C"]
+        s["三連複"] *= (24000-sanren_rank["-"])
+        s["三連単A"] *= sanren_rank["A"]
+        s["三連単B"] *= sanren_rank["B"]
+        s["三連単C"] *= sanren_rank["C"]
+        s["三連単"] *= (24000-sanren_rank["-"])
+        df = df.append(s)
+    df = df.round(-1)
+    total_s = pd.Series(df.sum(), name='合計')
+    df = df.append(total_s)
+    writer = pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', if_sheet_exists='replace')
+    writer.book = wb
+    writer.sheets = {ws_.title: ws_ for ws_ in wb.worksheets}
+    df.to_excel(writer, sheet_name=total)
+    writer.save()
+    # 必要箇所にカラーリング
+    ws = wb[total]
+    side1 = Side(style='thin', color='000000')
+    border1 = Border(top=side1, bottom=side1, left=side1, right=side1)
+    for col in ws.columns:
+        max_length = 0
+        for i, cell in enumerate(col):
+            coord = cell.coordinate
+            max_length = max(max_length, len(str(cell.value)))
+            ws[coord].border = border1
+            if coord[0] == 'A' or coord[1:] == '1':
+                ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
+                ws[coord].font = Font(color="ffffff")
+            try:
+                if cell.value > 0:
+                    ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
+                elif cell.value < 0:
+                    ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
+            except:
+                continue
+    # 月収支シートをファイルの先頭に移動させる
+    for ws_ in wb.worksheets:
+        i = i+1
+        if total in ws_.title:
+
+            #先頭までの移動シート枚数
+            Top_Sheet = i - 1
+            #シート移動
+            wb.move_sheet(ws,offset=-Top_Sheet)
+    # xlsxをpdfに変換し、pdfディレクトリに保存する
+    xlsx2pdf(pdf_path, ws)
+    # pdfをpngに変換し、pngディレクトリに保存する
+    pdf2png(pdf_path)
+    wb.save(excel_path)
+    wb.close()
