@@ -61,16 +61,16 @@ class Return:
                     except:
                         indexerror_chk = 0
                         break
+                pbar.close()
                 if indexerror_chk == 1:
-                    pbar.close()
                     print("{}回{}日のレースはまだ開催されていません。\n".format(str(race_id)[6:8], str(race_id)[8:10]))
-                    continue
                 elif indexerror_chk == 0:
                     break
                 elif indexerror_chk == -1:
-                    pbar.close()
                     print("対象のレースを全て取得し終わりました。\n")
-
+            else:
+                continue
+            break
         #pd.DataFrame型にして一つのデータにまとめる
         try:
             return_tables_df = pd.concat([return_tables[key] for key in return_tables])
