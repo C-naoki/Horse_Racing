@@ -33,7 +33,7 @@ class ShutubaTable(DataProcessor):
         data = pd.DataFrame()
         for race_id in race_id_list:
             pbar.update(1)
-            pbar.set_description("scrape shutuba table in {}".format([k for k, v in place_dict.items() if v == place][0]))
+            pbar.set_description("scrape shutuba table in {} {}回".format([k for k, v in place_dict.items() if v == place][0], venue_id[6:8]))
             time.sleep(1)
             url = 'https://race.netkeiba.com/race/shutuba.html?race_id=' + race_id
             df = pd.read_html(url)[0]
