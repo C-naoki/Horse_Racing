@@ -106,7 +106,7 @@ class HorseResults:
         # レース情報がないデータはほとんどの情報が欠落しているため削除する。
         df = df[np.isnan(df['R'])==False]
         df['rece_num'] = df['R'].fillna(0).astype(int)
-        df['time_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
+        df['time_idx'] = df['ﾀｲﾑ指数'].replace('**', 0).fillna(0).astype(float)
         df['ground_state_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
         df['birthday'] = df['birthday'].astype(int)
         
@@ -158,6 +158,8 @@ class HorseResults:
         self.past_target_list = ['rece_num', 'remark'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
+
+        self.horse_results = df
 
     def encode(self):
         df = self.horse_results.copy()
