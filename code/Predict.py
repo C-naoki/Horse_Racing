@@ -15,26 +15,18 @@ import openpyxl as xl
 import datetime
 
 from tabulate import tabulate
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font
 from openpyxl.styles.borders import Border, Side
-from openpyxl.styles import Font
 from openpyxl.styles.alignment import Alignment
 from openpyxl.utils import column_index_from_string
+from matplotlib.colors import rgb2hex
+import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    # race_dataの取得
-    r = c.Results(_dat.race_results["overall"])
-    # 前処理
-    r.preprocessing(obj=objective)
-    # 馬の過去成績の追加
+    # インスタンスの作成
     hr = c.HorseResults(_dat.horse_results["overall"])
-    r.merge_horse_results(hr)
-    # 5世代分の血統データの追加
-    # p = c.Peds(_dat.ped_results["overall"])
-    # p.encode()
-    # r.merge_peds(p.peds_e)
-    # カテゴリ変数の処理
-    r.process_categorical()
+    p = c.Peds(_dat.ped_results["overall"])
+    r = c.Results(_dat.race_results["overall"], hr, p)
 
     # 説明変数と目的変数に分割
     X = r.data_c.drop(drop_list+["odds", "rank"], axis=1)
@@ -54,13 +46,9 @@ if __name__ == '__main__':
     # "https://race.netkeiba.com/race/shutuba.html?race_id=" + race_id (出馬表)
     for venue_id in venue_id_list:
         # 出馬表のスクレイピング
-        st = c.ShutubaTable.scrape(race_id_list=race_id_list[venue_id][venue_id[4:6]][venue_id[6:8]], date=date, place=venue_id[4:6])
-        st.preprocessing()
-        st.merge_horse_results(hr)
-        # st.merge_peds(p.peds_e)
-        st.process_categorical(r.le_horse, r.le_jockey)
+        st = c.ShutubaTable.scrape(race_id_list, date, venue_id, r, hr, p)
         # ModelEvaluator
-        me = c.ModelEvaluator(lgb_clf, tables_path, kind=1, obj=objective)
+        me = c.ModelEvaluator(lgb_clf, tables_path, kind=1, obj=objective_type)
         X_fact = st.data_c.drop(drop_list, axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
         pred = me.predict_proba(X_fact, train=False)
@@ -107,9 +95,9 @@ if __name__ == '__main__':
             else:
                 triple_rank = "-"
             # 本命馬のランクの決定
-            if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2:
+            if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2.5:
                 favorite_rank = "A"
-            elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 or race_proba.iat[0, 1] >= 2:
+            elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 or race_proba.iat[0, 1] >= 2.5:
                 favorite_rank = "B"
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 0.4:
                 favorite_rank = "C"
@@ -240,17 +228,15 @@ if __name__ == '__main__':
                     if coord[0] == 'A' or coord[1:] == '1':
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[coord].font = Font(color="ffffff")
-            # 馬のスコアごとにカラーリング
+            # 馬のスコアごとにカラーリング(赤色のグラデーション)
+            cmap = plt.get_cmap("Reds")
             for row in ws.rows:
                 if 1 < int(row[0].coordinate[1:]) < 14:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)["score"].head(6)):
                         coord = cell.coordinate
-                        if score > 2.4:
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
-                        elif score > 2:
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
-                        elif score > 1:
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
+                        score = max(min(score, 3.5), 0)
+                        colorcode = rgb2hex(cmap(score/3.5)).replace('#', '')
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor=colorcode)
             wb.save(excel_path)
             wb.close()
 
@@ -264,7 +250,7 @@ if __name__ == '__main__':
             all_sanrentan_money = 0
             all_sanrenpuku_money = 0
             # 各ランク毎の結果を集計
-            for idx in ["A", "B", "C"]:
+            for rank in ["A", "B", "C"]:
                 tansho_win = np.zeros(4, dtype = int) # 勝ち馬を予測できた数
                 tansho_cnt = 0 # ランク毎の馬の数
                 tansho_money = 0 # 単勝の回収率
@@ -276,8 +262,8 @@ if __name__ == '__main__':
                 wb = xl.load_workbook(excel_path)
                 ws = wb[sheet_name[venue_id]]
                 for i in range(ws.max_row):
-                    # True: 本命馬ランクがidxと一致
-                    if ws['B{}'.format(i+1)].value == idx:
+                    # True: 本命馬ランクがrankと一致
+                    if ws['B{}'.format(i+1)].value == rank:
                         tansho_cnt += 1
                         # True: 単勝予測成功
                         if ws['D{}'.format(i+1)].value[-3:] == "(1)":
@@ -289,8 +275,8 @@ if __name__ == '__main__':
                             tansho_win[2] += 1
                         else:
                             tansho_win[3] += 1
-                    # True: 三連複ランクがidxと一致
-                    if ws['C{}'.format(i+1)].value == idx:
+                    # True: 三連複ランクがrankと一致
+                    if ws['C{}'.format(i+1)].value == rank:
                         sanren_cnt += 1
                         # True: 三連複予測成功
                         if ws['N{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
@@ -300,7 +286,7 @@ if __name__ == '__main__':
                         if ws['M{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                             sanrentan_win += 1
                             sanrentan_money += ws['P{}'.format(i+1)].value
-                return_df.loc[idx] = [
+                return_df.loc[rank] = [
                                         str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]),
                                         str(tansho_win[0])+'/'+str(tansho_cnt),
                                         str(sanrentan_win)+'/'+str(sanren_cnt),
@@ -375,9 +361,6 @@ if __name__ == '__main__':
             m.xlsx2pdf(file_path[venue_id], ws)
             # pdfをpngに変換し、pngディレクトリに保存する
             m.pdf2png(file_path[venue_id])
-
-
-
             writer.save()
             wb.save(excel_path)
             wb.close()
@@ -385,6 +368,7 @@ if __name__ == '__main__':
         else:
             print("<"+venue_name[venue_id]+">")
             print(tabulate(predict_df, predict_df.columns, tablefmt="presto", showindex=True))
-        
+    # 現在時点での1ヶ月間の総収支をまとめたシートを作成
+    m.make_total_sheet(month+'月収支', excel_path, file_path[month+'月収支'])
     # 出力結果が得られた要因
-    print(me.feature_importance(X))
+    print(me.feature_importance(X, type='split'))
