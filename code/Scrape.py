@@ -9,7 +9,7 @@ from environment.variables import *
 
 import pandas as pd
 
-race_id_list = {}
+race_id_dict = {}
 for place in range(1, 11):
     race_id_place = {}
     for kai in range(1, 13):
@@ -19,10 +19,10 @@ for place in range(1, 11):
                 race_id = scrape_year + str(place).zfill(2) + str(kai).zfill(2) + str(day).zfill(2) + str(r).zfill(2)
                 race_id_kai.append(race_id)
         race_id_place[kai] = race_id_kai
-    race_id_list[place] = race_id_place
+    race_id_dict[place] = race_id_place
 
 # Resultsのスクレイピング
-new_race_results = c.Results.scrape(race_id_list,
+new_race_results = c.Results.scrape(race_id_dict,
                                     pre_race_results=_dat.race_results[scrape_year]
                                     )
 print(new_race_results)
@@ -44,13 +44,13 @@ print(new_horse_results)
 if len(new_horse_results) != 0: new_horse_results.to_pickle("../_dat/train_data/"+scrape_year+"/horse_results.pickle")
 
 # return_tablesのスクレイピング
-new_return_tables, _ = c.Return.scrape(race_id_list,
+new_return_tables, _ = c.Return.scrape(race_id_dict,
                                     pre_return_tables=_dat.return_tables[scrape_year]
                                     )
 print(new_return_tables)
 if len(new_return_tables) != 0: new_return_tables.to_pickle("../_dat/train_data/"+scrape_year+"/return_tables.pickle")
 
-m.update_data(_dat.race_results["overall"], _dat.race_results["2022"]).to_pickle("../_dat/train_data/overall/race_results.pickle")
-m.update_data(_dat.horse_results["overall"], _dat.horse_results["2022"]).to_pickle("../_dat/train_data/overall/horse_results.pickle")
-m.update_data(_dat.ped_results["overall"], _dat.ped_results["2022"]).to_pickle("../_dat/train_data/overall/ped_results.pickle")
-m.update_data(_dat.return_tables["overall"], _dat.return_tables["2022"]).to_pickle("../_dat/train_data/overall/return_tables.pickle")
+m.update_data(_dat.race_results["overall"], _dat.race_results[scrape_year]).to_pickle("../_dat/train_data/overall/race_results.pickle")
+m.update_data(_dat.horse_results["overall"], _dat.horse_results[scrape_year]).to_pickle("../_dat/train_data/overall/horse_results.pickle")
+m.update_data(_dat.ped_results["overall"], _dat.ped_results[scrape_year]).to_pickle("../_dat/train_data/overall/ped_results.pickle")
+m.update_data(_dat.return_tables["overall"], _dat.return_tables[scrape_year]).to_pickle("../_dat/train_data/overall/return_tables.pickle")
