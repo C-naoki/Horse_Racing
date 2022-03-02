@@ -1,4 +1,4 @@
-# 1. ディレクトリ構造
+## 1. ディレクトリ構造
 <pre>
 .
 ├── Notebook
@@ -58,7 +58,7 @@
     └── README.md
 </pre>
 
-# 2. データ量
+## 2. データ量
 
 |               |   2017   |   2018   |   2019   |   2020   |   2021   |   2022   | 
 | ------------- | :------: | :------: | :------: | :------: | :------: | :------: | 
@@ -66,3 +66,11 @@
 | horse_results |  212928  |  309882  |  275246  |  221934  |  144484  |          | 
 | ped_results   |   11277  |   11398  |   11557  |   11702  |   11567  |          | 
 | return_tables |   27526  |   27471  |   27444  |   27505  |   27469  |          | 
+
+## 3. 現在利用してるモデル
+* drop_list = ['date', 'jockey_id', 'breeder_id', 'owner_id', 'trainer_id', 'birthday', 'horse_id']
+* avg=False
+* ped=False
+* objective=lambdarank
+* 'metric': 'ndcg'
+* 'ndcg_eval_at': [1000]
