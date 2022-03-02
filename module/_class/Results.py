@@ -16,9 +16,10 @@ from environment.variables import *
 
 
 class Results(DataProcessor):
-    def __init__(self, results):
+    def __init__(self, results, hr, p, obj="lambdarank", n_samples=[[5, 9, 'all'], [1, 2, 3]], past=True, avg=False, ped=False):
         super(Results, self).__init__()
         self.data = results
+        self.make_data(hr, p, obj, n_samples, past, avg, ped)
         
     @classmethod
     def read_pickle(cls, path_list):
@@ -27,6 +28,13 @@ class Results(DataProcessor):
             df = update_data(df, pd.read_pickle(path))
         return cls(df)
     
+    def make_data(self, hr, p, obj, n_samples, past, avg, ped):
+        self.preprocessing(obj)
+        self.merge_horse_results(hr, n_samples[0], n_samples[1], past, avg)
+        if ped:
+            self.merge_peds(p.peds_e)
+        self.process_categorical()
+
     @staticmethod
     def scrape(race_id_dict, pre_race_results=pd.DataFrame()):
         """

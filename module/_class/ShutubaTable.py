@@ -13,12 +13,22 @@ from bs4 import BeautifulSoup
 from environment.variables import place_dict
 
 class ShutubaTable(DataProcessor):
-    def __init__(self, shutuba_tables):
+    def __init__(self, shutuba_tables, r, hr, p, n_samples, past, avg, ped):
         super(ShutubaTable, self).__init__()
         self.data = shutuba_tables
+        self.make_data(r, hr, p, n_samples, past, avg, ped)
     
+    def make_data(self, r, hr, p, n_samples, past, avg, ped):
+        self.preprocessing()
+        self.merge_horse_results(hr, n_samples[0], n_samples[1], past, avg)
+        if ped:
+            self.merge_peds(p.peds_e)
+        self.process_categorical(r.le_horse, r.le_jockey)
+
     @classmethod
-    def scrape(cls, race_id_list, date, place):
+    def scrape(cls, race_id_dict, date, venue_id, r, hr, p, n_samples=[[5, 9, 'all'], [1, 2, 3]], past=True, avg=False, ped=False):
+        race_id_list = race_id_dict[venue_id][venue_id[4:6]][venue_id[6:8]]
+        place = venue_id[4:6]
         pbar = tqdm(total=len(race_id_list))
         data = pd.DataFrame()
         for race_id in race_id_list:
@@ -82,7 +92,7 @@ class ShutubaTable(DataProcessor):
             df['jockey_id'] = jockey_id_list
             df.index = [race_id] * len(df)
             data = data.append(df)
-        return cls(data)
+        return cls(data, r, hr, p, n_samples, past, avg, ped)
 
     #前処理
     def preprocessing(self):
