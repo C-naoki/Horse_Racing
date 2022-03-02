@@ -71,6 +71,10 @@ if __name__ == '__main__':
                                         index = [], 
                                         columns = return_columns
                                     )
+            fukusho_df = pd.DataFrame(
+                                        index = [],
+                                        columns = fukusho_columns
+            )
         except:
             return_chk = 0
             predict_df = pd.DataFrame(
@@ -85,15 +89,6 @@ if __name__ == '__main__':
             else:
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
-            # 三連複のランクの決定
-            if len(race_proba['score'][race_proba['score']>=1.5])>=3:
-                triple_rank = 'A'
-            elif len(race_proba['score'][race_proba['score']>=1.5])>=2:
-                triple_rank = 'B'
-            elif len(race_proba['score'][race_proba['score']>=1.5])>=1:
-                triple_rank = 'C'
-            else:
-                triple_rank = '-'
             race_class = class_dict[st.data_c.loc[proba[0], 'class'][0]]
             # 本命馬のランクの決定
             if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2.5:
@@ -102,6 +97,8 @@ if __name__ == '__main__':
                 favorite_rank = 'B'
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 0.4:
                 favorite_rank = 'C'
+            elif np.isnan(race_proba.iat[0, 1]) or (race_proba.iat[0, 1] == race_proba.iat[5, 1]):
+                favorite_rank = 'x'
             else:
                 favorite_rank = '-'
             # race_id_dictの長さが6に満たない場合、'-'で埋める
@@ -263,7 +260,7 @@ if __name__ == '__main__':
                 sanrentan_money = 0 # 三連単回収金額
                 wb = xl.load_workbook(excel_path)
                 ws = wb[sheet_name[venue_id]]
-                for i in range(ws.max_row):
+                for i in range(1, ws.max_row):
                     # True: 本命馬ランクがrankと一致
                     if ws['B{}'.format(i+1)].value == rank:
                         tansho_cnt += 1
@@ -305,7 +302,7 @@ if __name__ == '__main__':
                                                 str(all_win[0])+'/'+str(all_tansho_cnt),
                                                 str(all_win[0]+all_win[1]+all_win[2])+'/'+str(all_tansho_cnt),
                                                 str(all_sanrentan_win)+'/'+str(all_sanren_cnt),
-                                                str(sanrenpuku_win)+'/'+str(all_sanren_cnt),
+                                                str(all_sanrenpuku_win)+'/'+str(all_sanren_cnt),
                                                 m.div(all_tansho_money, 100*all_tansho_cnt),
                                                 m.div(all_sanrentan_money, 2000*all_sanren_cnt),
                                                 m.div(all_sanrenpuku_money, 2000*all_sanren_cnt)
@@ -326,11 +323,39 @@ if __name__ == '__main__':
                                         str(all_win[0])+'/'+str(all_tansho_cnt),
                                         str(all_win[0]+all_win[1]+all_win[2])+'/'+str(all_tansho_cnt),
                                         str(all_sanrentan_win)+'/'+str(all_sanren_cnt),
-                                        str(sanrenpuku_win)+'/'+str(all_sanren_cnt),
+                                        str(all_sanrenpuku_win)+'/'+str(all_sanren_cnt),
                                         m.div(all_tansho_money, 100*all_tansho_cnt),
                                         m.div(all_sanrentan_money, 2000*all_sanren_cnt),
                                         m.div(all_sanrenpuku_money, 2000*all_sanren_cnt)
                                     ]
+
+            # fukusho_dfの作成
+            fukusho_win = np.zeros(3, dtype = int)
+            wide_win = 0
+            no_cnt = 0
+            wb = xl.load_workbook(excel_path)
+            ws = wb[sheet_name[venue_id]]
+            for j in range(1, ws.max_row):
+                wide_chk = 0
+                if ws['B{}'.format(j+1)].value == 'x':
+                    no_cnt += 1
+                else:
+                    for i, col in enumerate(['D', 'E', 'F']):
+                        if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)', '(3)']:
+                            fukusho_win[i] += 1
+                        if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)']:
+                            wide_chk += 1
+                    if wide_chk >= 2:
+                        wide_win += 1
+            fukusho_df.loc['全体'] = [
+                                        str(fukusho_win[0])+'/'+str(12-no_cnt),
+                                        str(fukusho_win[1])+'/'+str(12-no_cnt),
+                                        str(fukusho_win[2])+'/'+str(12-no_cnt),
+                                        str(wide_win)+'/'+str(12-no_cnt)
+                                    ]
+            wb.save(excel_path)
+            wb.close()
+
             # return_dfをexcelに追記
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
@@ -372,6 +397,41 @@ if __name__ == '__main__':
                         cell.number_format = '0.00%'
                 adjusted_width = max_length * 2.08
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
+            writer.save()
+            wb.save(excel_path)
+            wb.close()
+
+            # fukusho_dfをexcelに追記
+            wb = xl.load_workbook(excel_path)
+            ws = wb[sheet_name[venue_id]]
+            writer = pd.ExcelWriter(excel_path, engine='openpyxl')
+            writer.book = wb
+            writer.sheets = {ws.title: ws for ws in wb.worksheets}
+            startrow = writer.sheets[sheet_name[venue_id]].max_row
+            fukusho_df.to_excel(writer, sheet_name=sheet_name[venue_id], startrow=startrow+1)
+            # excelファイルの装飾
+            ws['A22'] = '成績'
+            ws['A22'].font = Font(bold=True)
+            for col in ws.columns:
+                max_length = 0
+                for i, cell in enumerate(col):
+                    coord = cell.coordinate
+                    if 22<=int(coord[1:])<=23 and int(column_index_from_string(coord[0]))<=5: ws[coord].border = border1
+                    max_length = max(max_length, len(str(cell.value)))
+                    # 必要箇所にカラーリング
+                    if (coord[0] == 'A' and (coord[1:] == '22' or coord[1:] == '23')) or (coord[1:] == '22' and column_index_from_string(coord[0])<=5):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
+                        ws[coord].font = Font(color='ffffff')
+                    # 文字を中心に配置する
+                    cell.alignment = Alignment(horizontal = 'center', 
+                                        vertical = 'center',
+                                        wrap_text = False)
+                adjusted_width = max_length * 2.08
+                ws.column_dimensions[col[0].column_letter].width = adjusted_width
+            writer.save()
+            wb.save(excel_path)
+            wb.close()
+
             # ディレクトリを自動作成
             if not os.path.isdir(dir_path):
                 os.makedirs(dir_path)
@@ -380,9 +440,7 @@ if __name__ == '__main__':
             m.xlsx2pdf(file_path[venue_id], ws)
             # pdfをpngに変換し、pngディレクトリに保存する
             m.pdf2png(file_path[venue_id])
-            writer.save()
-            wb.save(excel_path)
-            wb.close()
+
         # (まだレースが開催されていない場合)予想結果の表示
         else:
             print('<'+venue_name[venue_id]+'>')
