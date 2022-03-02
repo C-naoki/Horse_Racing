@@ -13,6 +13,7 @@ class Peds:
     def __init__(self, peds):
         self.peds = peds
         self.peds_e = pd.DataFrame() # after label encoding and transforming into category
+        self.encode()
     
     @classmethod
     def read_pickle(cls, path_list):
