@@ -17,10 +17,7 @@ class ModelEvaluator:
         self.sanrentan = self.rt.sanrentan
         self.sanrenpuku = self.rt.sanrenpuku
         self.obj = obj
-        if self.obj == 'regression' or self.obj == "lambdarank":
-            self.kind = 1
-        else:
-            self.kind = kind
+        self.kind = kind
     
     #3着以内に入る確率を予測
     def predict_proba(self, X, train=True, std=True, minmax=False):
