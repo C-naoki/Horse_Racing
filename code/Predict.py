@@ -97,7 +97,7 @@ if __name__ == '__main__':
                 favorite_rank = 'B'
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 0.4:
                 favorite_rank = 'C'
-            elif np.isnan(race_proba.iat[0, 1]) or (race_proba.iat[0, 1] == race_proba.iat[5, 1]):
+            elif np.isnan(race_proba.iat[0, 1]) or (race_proba.iat[0, 1] == race_proba.iat[2, 1]):
                 favorite_rank = 'x'
             else:
                 favorite_rank = '-'
@@ -201,10 +201,14 @@ if __name__ == '__main__':
             for col in ws.columns:
                 for i, cell in enumerate(col):
                     coord = cell.coordinate
-                    # 二重線の記入
-                    if coord[0] == 'J' or coord[0] == 'C': ws[coord].border = border2
-                    # 線の記入
-                    else: ws[coord].border = border1
+                    # 表のindex及びcolumnsが記載された位置の背景色を黒とする
+                    if coord[0] == 'A' or coord[1:] == '1':
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
+                        ws[coord].font = Font(color='ffffff')
+                    # 残りのセルの背景色を白とする
+                    else:
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
+                        ws[coord].font = Font(color='000000')
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
                     if (    ws[coord].value == 'A'
                         or (coord[0] == 'K' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)') 
@@ -223,9 +227,10 @@ if __name__ == '__main__':
                         or (coord[0] == 'N' and sanrenpuku_chk[i] == 1)
                         or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)' and sanrenpuku_chk[i] == 1)):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                    if coord[0] == 'A' or coord[1:] == '1':
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[coord].font = Font(color='ffffff')
+                    # 二重線の記入
+                    if coord[0] == 'J' or coord[0] == 'C': ws[coord].border = border2
+                    # 線の記入
+                    else: ws[coord].border = border1
             # 馬のスコアごとにカラーリング(赤色のグラデーション)
             cmap = plt.get_cmap('Reds')
             for row in ws.rows:
@@ -332,26 +337,39 @@ if __name__ == '__main__':
             # fukusho_dfの作成
             fukusho_win = np.zeros(3, dtype = int)
             wide_win = 0
+            sanrenpuku_win = 0
+            sanrentan_win = 0
             no_cnt = 0
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
             for j in range(1, ws.max_row):
                 wide_chk = 0
+                sanrenpuku_chk = 0
+                sanrentan_chk = 0
                 if ws['B{}'.format(j+1)].value == 'x':
                     no_cnt += 1
                 else:
                     for i, col in enumerate(['D', 'E', 'F']):
                         if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)', '(3)']:
                             fukusho_win[i] += 1
+                            sanrenpuku_chk += 1
                         if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)']:
                             wide_chk += 1
                     if wide_chk >= 2:
                         wide_win += 1
+                    if sanrenpuku_chk == 3:
+                        sanrenpuku_win += 1
+                    if (    ws['D{}'.format(j+1)].value[-3:] == '(1)'
+                        and ws['E{}'.format(j+1)].value[-3:] == '(2)'
+                        and ws['F{}'.format(j+1)].value[-3:] == '(3)'):
+                        sanrentan_win += 1
             fukusho_df.loc['全体'] = [
                                         str(fukusho_win[0])+'/'+str(12-no_cnt),
                                         str(fukusho_win[1])+'/'+str(12-no_cnt),
                                         str(fukusho_win[2])+'/'+str(12-no_cnt),
-                                        str(wide_win)+'/'+str(12-no_cnt)
+                                        str(wide_win)+'/'+str(12-no_cnt),
+                                        str(sanrenpuku_win)+'/'+str(12-no_cnt),
+                                        str(sanrentan_win)+'/'+str(12-no_cnt)
                                     ]
             wb.save(excel_path)
             wb.close()
@@ -371,12 +389,14 @@ if __name__ == '__main__':
                 max_length = 0
                 for i, cell in enumerate(col):
                     coord = cell.coordinate
-                    if 15<=int(coord[1:])<=20 and int(column_index_from_string(coord[0]))<=9: ws[coord].border = border1
                     max_length = max(max_length, len(str(cell.value)))
                     # 必要箇所にカラーリング
                     if (coord[0] == 'A' and coord[1:] != '14') or coord[1:] == '15' and column_index_from_string(coord[0])<=9:
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[coord].font = Font(color='ffffff')
+                    elif 14<=int(coord[1:]):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
+                        ws[coord].font = Font(color='000000')
                     if ws[coord].value == 'A':
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                         ws[coord].font = Font(color='000000')
@@ -395,6 +415,7 @@ if __name__ == '__main__':
                                         wrap_text = False)
                     if (coord[0] == 'G' or coord[0] == 'H' or coord[0] == 'I') and 16 <= int(coord[1:]) <= 20:
                         cell.number_format = '0.00%'
+                    if 15<=int(coord[1:])<=20 and int(column_index_from_string(coord[0]))<=9: ws[coord].border = border1
                 adjusted_width = max_length * 2.08
                 ws.column_dimensions[col[0].column_letter].width = adjusted_width
             writer.save()
@@ -416,12 +437,16 @@ if __name__ == '__main__':
                 max_length = 0
                 for i, cell in enumerate(col):
                     coord = cell.coordinate
-                    if 22<=int(coord[1:])<=23 and int(column_index_from_string(coord[0]))<=5: ws[coord].border = border1
                     max_length = max(max_length, len(str(cell.value)))
                     # 必要箇所にカラーリング
-                    if (coord[0] == 'A' and (coord[1:] == '22' or coord[1:] == '23')) or (coord[1:] == '22' and column_index_from_string(coord[0])<=5):
+                    if (   (coord[0] == 'A' and (coord[1:] == '22' or coord[1:] == '23')) 
+                        or (coord[1:] == '22' and column_index_from_string(coord[0])<=7)):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[coord].font = Font(color='ffffff')
+                    elif 21<=int(coord[1:]):
+                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
+                        ws[coord].font = Font(color='000000')
+                    if 22<=int(coord[1:])<=23 and int(column_index_from_string(coord[0]))<=7: ws[coord].border = border1
                     # 文字を中心に配置する
                     cell.alignment = Alignment(horizontal = 'center', 
                                         vertical = 'center',
