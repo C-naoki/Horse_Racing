@@ -6,7 +6,7 @@ import time
 from ..functions import update_data
 from tqdm import tqdm
 from urllib.request import urlopen
-from environment.variables import place_dict
+from environment.settings import place_dict
 
 class Return:
     def __init__(self, return_tables):
@@ -49,7 +49,7 @@ class Return:
                         return_tables[race_id] = df
                         # 馬番と着順の関係表
                         arrival_df.index = [race_id] * len(arrival_df)
-                        arrival_df.columns = ["着順", "馬番"]
+                        arrival_df.columns = ["rank", "horse_num"]
                         arrival_tables[race_id] = arrival_df
                     except IndexError:
                         indexerror_chk = 1

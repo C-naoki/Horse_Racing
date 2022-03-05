@@ -1,1 +1,1 @@
-from environment import variables
+from environment import settings

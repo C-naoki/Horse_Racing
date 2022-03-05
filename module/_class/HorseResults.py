@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 from ..functions import update_data
-from environment.variables import *
+from environment.settings import *
 
 class HorseResults:
     def __init__(self, horse_results):
@@ -38,14 +38,6 @@ class HorseResults:
 
         # horse_idをkeyにしてDataFrame型を格納
         horse_results = {}
-        # プレミアムアカウントのデータを利用するためnetkeibaにログイン
-        url_login = "https://regist.netkeiba.com/account/?pid=login&action=auth"
-        payload = {
-            'login_id': USER,
-            'pswd': PASS
-        }
-        session = requests.Session()
-        session.post(url_login, data=payload)
         for horse_id in tqdm(horse_id_list):
             if len(pre_horse_results) and horse_id in pre_horse_results.index:
                 continue
@@ -212,26 +204,26 @@ class HorseResults:
         merged_df = pd.concat(temp_list)
         return merged_df
 
-    def past(self, horse_id_list, date, n_samples, chk):
+    def past(self, horse_id_list, date, n_samples, isZero):
         target_df = self.horse_results.query('index in @horse_id_list')
         filtered_df = target_df[target_df['date'] < date].sort_values('date', ascending=False).groupby(level=0).head(n_samples)
         self.past_dict = {}
         self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.past_target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
-        if chk == 0:
+        if isZero == 0:
             self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
 
-    def merge_past(self, results, date, n_samples, chk):
+    def merge_past(self, results, date, n_samples, isZero):
         # ある日付に関する情報のみに絞る
         df = results[results['date']==date]
         # horse_id_listを取得する
         horse_id_list = df['horse_id']
-        self.past(horse_id_list, date, n_samples, chk)
+        self.past(horse_id_list, date, n_samples, isZero)
         merged_df = df.merge(self.past_dict['non_category'], left_on='horse_id', right_index=True, how='left')
-        if chk == 0:
+        if isZero == 0:
             merged_df = merged_df.merge(self.latest, left_on='horse_id', right_index=True, how='left')
         return merged_df
 
-    def merge_past_all(self, results, n_samples, chk):
+    def merge_past_all(self, results, n_samples, isZero):
         # 日付の情報を取得する
         date_list = results['date'].unique()
         temp_list = list()
@@ -239,6 +231,6 @@ class HorseResults:
         for date in date_list:
             pbar.update(1)
             pbar.set_description("merge p{} data".format(str(n_samples)+(" "*(2-len(str(n_samples))))))
-            temp_list.append(self.merge_past(results, date, n_samples, chk))
+            temp_list.append(self.merge_past(results, date, n_samples, isZero))
         merged_df = pd.concat(temp_list)
         return merged_df

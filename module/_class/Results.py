@@ -6,13 +6,12 @@ import numpy as np
 import re
 import time
 import datetime
-import requests
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 from . import DataProcessor
 from ..functions import update_data
-from environment.variables import *
+from environment.settings import *
 
 
 class Results(DataProcessor):
@@ -51,14 +50,6 @@ class Results(DataProcessor):
 
         #race_idをkeyにしてDataFrame型を格納
         race_results = {}
-        # プレミアムアカウントのデータを利用するためnetkeibaにログイン
-        url_login = "https://regist.netkeiba.com/account/?pid=login&action=auth"
-        payload = {
-            'login_id': USER,
-            'pswd': PASS
-        }
-        session = requests.Session()
-        session.post(url_login, data=payload)
         for place, race_id_place in race_id_dict.items():
             for kai, race_id_kai in race_id_place.items():
                 indexerror_chk = -1

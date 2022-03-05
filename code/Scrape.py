@@ -5,7 +5,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import module as m
 import module._class as c
 import _dat
-from environment.variables import *
+from environment.settings import *
 
 import pandas as pd
 

@@ -10,7 +10,7 @@ import pandas as pd
 from . import DataProcessor
 from tqdm import tqdm
 from bs4 import BeautifulSoup
-from environment.variables import place_dict
+from environment.settings import place_dict
 
 class ShutubaTable(DataProcessor):
     def __init__(self, shutuba_tables, r, hr, p, n_samples, past, avg, ped):
