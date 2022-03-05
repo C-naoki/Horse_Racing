@@ -5,7 +5,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import module as m
 import module._class as c
 import _dat
-from environment.variables import *
+from environment.settings import *
 
 import pandas as pd
 import numpy as np
@@ -13,6 +13,7 @@ import optuna.integration.lightgbm as lgb_o
 import lightgbm as lgb
 import openpyxl as xl
 import datetime
+import re
 
 from tabulate import tabulate
 from openpyxl.styles import PatternFill, Font
@@ -92,15 +93,15 @@ if __name__ == '__main__':
             race_class = class_dict[st.data_c.loc[proba[0], 'class'][0]]
             # 本命馬のランクの決定
             if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2.5:
-                favorite_rank = 'A'
+                fav_rank = 'A'
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 or race_proba.iat[0, 1] >= 2.5:
-                favorite_rank = 'B'
+                fav_rank = 'B'
             elif race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 0.4:
-                favorite_rank = 'C'
+                fav_rank = 'C'
             elif np.isnan(race_proba.iat[0, 1]) or (race_proba.iat[0, 1] == race_proba.iat[2, 1]):
-                favorite_rank = 'x'
+                fav_rank = 'x'
             else:
-                favorite_rank = '-'
+                fav_rank = '-'
             # race_id_dictの長さが6に満たない場合、'-'で埋める
             s = pd.Series(['-', '-'], index=race_proba.columns, name=race_proba.index[0])
             for j in range(6-len(race_proba)):
@@ -109,11 +110,11 @@ if __name__ == '__main__':
                 # 本命馬の着順結果を取得
                 real_arrival = list()
                 for j in range(6):
-                    if len(arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],'馬番']==race_proba.iat[j, 0]]['着順']) == 1:
+                    if len(arrival_tables_df.loc[proba[0],:][arrival_tables_df.loc[proba[0],'horse_num']==race_proba.iat[j, 0]]['rank']) == 1:
                         real_arrival.append(
                             str(arrival_tables_df.loc[proba[0],:][
-                                    arrival_tables_df.loc[proba[0],'馬番']==race_proba.iat[j, 0]
-                                ]['着順'].iat[0])
+                                    arrival_tables_df.loc[proba[0],'horse_num']==race_proba.iat[j, 0]
+                                ]['rank'].iat[0])
                             )
                     else:
                         real_arrival.append('-')
@@ -151,7 +152,7 @@ if __name__ == '__main__':
                 else: sanrentan_money = 0
                 # データをdfに追加
                 predict_df.loc[race_num+'R'] = [
-                                                favorite_rank,
+                                                fav_rank,
                                                 race_class,
                                                 str(race_proba.iat[0, 0])+' ('+real_arrival[0]+')',
                                                 str(race_proba.iat[1, 0])+' ('+real_arrival[1]+')',
@@ -171,7 +172,7 @@ if __name__ == '__main__':
             else:
                 # データをdfに追加
                 predict_df.loc[race_num+'R'] = [
-                                                favorite_rank,
+                                                fav_rank,
                                                 race_class,
                                                 race_proba.iat[0, 0],
                                                 race_proba.iat[1, 0],
@@ -190,9 +191,14 @@ if __name__ == '__main__':
             # 追加したデータの修正
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
+            # xlsxファイルに書き込む表の列、行が対応するExcel座標
+            rows_col = 'A'
+            columns_row = '1'
+            # 本命馬の情報が書かれているエクセル座標の列部分
+            fav_col = predict_columns.index('本命馬◎')+2
             # 表の左上に開催地の追加
-            ws['A1'] = venue_name[venue_id]
-            ws['A1'].font = Font(bold=True)
+            ws[rows_col+columns_row] = venue_name[venue_id]
+            ws[rows_col+columns_row].font = Font(bold=True)
             # 通常の線と二重線を用意
             side1 = Side(style='thin', color='000000')
             side2 = Side(style='double', color='000000')
@@ -200,9 +206,12 @@ if __name__ == '__main__':
             border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
             for col in ws.columns:
                 for i, cell in enumerate(col):
+                    # エクセル座標
                     coord = cell.coordinate
+                    cell_col = re.sub(r"[^a-zA-Z]", "", coord)
+                    cell_row = re.sub(r"\D", "", coord)
                     # 表のindex及びcolumnsが記載された位置の背景色を黒とする
-                    if coord[0] == 'A' or coord[1:] == '1':
+                    if cell_col == 'A' or coord[1:] == '1':
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
                         ws[coord].font = Font(color='ffffff')
                     # 残りのセルの背景色を白とする
@@ -210,31 +219,31 @@ if __name__ == '__main__':
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
                         ws[coord].font = Font(color='000000')
                     # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
-                    if (    ws[coord].value == 'A'
-                        or (coord[0] == 'K' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)') 
-                        or (coord[0] == 'N' and sanrenpuku_chk[i] == 3)
-                        or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)' and sanrenpuku_chk[i] == 3)):
+                    if (   (ws[coord].value == 'A')
+                        or (ws[cell_col+columns_row].value == '単勝オッズ' and '(1)' in ws.cell(column=fav_col, row=int(cell_row)).value) 
+                        or (ws[cell_col+columns_row].value == '三連複オッズ' and sanrenpuku_chk[i] == 3)
+                        or (ws[cell_col+columns_row].value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=int(cell_row)).coordinate].value and sanrenpuku_chk[i] == 3)):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
                     # ランクB及び着順の予想が3着以内及び三連複の3頭中2頭的中した時、セルを水色にする
-                    if (    ws[coord].value == 'B'
-                        or (coord[0] == 'K' and (ws[list(ws.columns)[3][i].coordinate].value[-3:]=='(2)'
-                        or ws[list(ws.columns)[3][i].coordinate].value[-3:]=='(3)'))
-                        or (coord[0] == 'N' and sanrenpuku_chk[i] == 2)
-                        or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)' and sanrenpuku_chk[i] == 2)):
+                    if (   (ws[coord].value == 'B')
+                        or (ws[cell_col+columns_row].value == '単勝オッズ' and ('(2)' in ws.cell(column=fav_col, row=int(cell_row)).value
+                        or '(3)' in ws[ws.cell(column=fav_col, row=int(cell_row)).coordinate].value))
+                        or (ws[cell_col+columns_row].value == '三連複オッズ' and sanrenpuku_chk[i] == 2)
+                        or (ws[cell_col+columns_row].value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=int(cell_row)).coordinate].value and sanrenpuku_chk[i] == 2)):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
                     # ランクC及び及び三連複の3頭中1頭のみ的中した時、セルを灰色にする
-                    if (    ws[coord].value == 'C'
-                        or (coord[0] == 'N' and sanrenpuku_chk[i] == 1)
-                        or (coord[0] == 'M' and ws[list(ws.columns)[3][i].coordinate].value[-3:] =='(1)' and sanrenpuku_chk[i] == 1)):
+                    if (   (ws[coord].value == 'C')
+                        or (ws[cell_col+columns_row].value == '三連複オッズ' and sanrenpuku_chk[i] == 1)
+                        or (ws[cell_col+columns_row].value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=int(cell_row)).coordinate].value and sanrenpuku_chk[i] == 1)):
                         ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                    # 二重線の記入
-                    if coord[0] == 'J' or coord[0] == 'C': ws[coord].border = border2
+                    # # 二重線の記入
+                    # if coord[0] == 'J' or coord[0] == 'C': ws[coord].border = border2
                     # 線の記入
-                    else: ws[coord].border = border1
+                    ws[coord].border = border1
             # 馬のスコアごとにカラーリング(赤色のグラデーション)
             cmap = plt.get_cmap('Reds')
             for row in ws.rows:
-                if 1 < int(row[0].coordinate[1:]) < 14:
+                if 1 < int(row[0].coordinate[1:]) <= ws.max_row:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)['score'].head(6)):
                         coord = cell.coordinate
                         if np.isnan(score): score = 0
@@ -466,12 +475,13 @@ if __name__ == '__main__':
             # pdfをpngに変換し、pngディレクトリに保存する
             m.pdf2png(file_path[venue_id])
 
+            # 現在時点での1ヶ月間の総収支をまとめたシートを作成
+            m.make_BoP_sheet(month+'月収支', excel_path, file_path[month+'月収支'], total_columns)
+            m.make_hit_sheet(month+'月的中率', excel_path, file_path[month+'月的中率'], total_columns)
+
+            # 出力結果が得られた要因
+            print(me.feature_importance(X, type='split'))
         # (まだレースが開催されていない場合)予想結果の表示
         else:
             print('<'+venue_name[venue_id]+'>')
             print(tabulate(predict_df, predict_df.columns, tablefmt='presto', showindex=True))
-    # 現在時点での1ヶ月間の総収支をまとめたシートを作成
-    m.make_BoP_sheet(month+'月収支', excel_path, file_path[month+'月収支'], total_columns)
-    m.make_hit_sheet(month+'月的中率', excel_path, file_path[month+'月的中率'], total_columns)
-    # 出力結果が得られた要因
-    print(me.feature_importance(X, type='split'))
