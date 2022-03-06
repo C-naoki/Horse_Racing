@@ -274,31 +274,43 @@ if __name__ == '__main__':
                 sanrentan_money = 0 # 三連単回収金額
                 wb = xl.load_workbook(excel_path)
                 ws = wb[sheet_name[venue_id]]
-                for i in range(1, ws.max_row):
-                    # True: 本命馬ランクがrankと一致
-                    if ws['B{}'.format(i+1)].value == rank:
-                        tansho_cnt += 1
+                for row in ws.rows:
+                    for cell in row:
+                        coord = cell.coordinate
+                        cell_col = re.sub(r"[^a-zA-Z]", "", coord)
+                        cell_row = re.sub(r"\D", "", coord)
                         # True: 単勝予測成功
-                        if ws['D{}'.format(i+1)].value[-3:] == '(1)':
-                            tansho_win[0] += 1
-                            tansho_money += ws['O{}'.format(i+1)].value
-                        elif ws['D{}'.format(i+1)].value[-3:] == '(2)':
-                            tansho_win[1] += 1
-                        elif ws['D{}'.format(i+1)].value[-3:] == '(3)':
-                            tansho_win[2] += 1
-                        else:
-                            tansho_win[3] += 1
-                    # True: 三連複ランクがrankと一致
-                    if ws['B{}'.format(i+1)].value == rank:
-                        sanren_cnt += 1
-                        # True: 三連複予測成功
-                        if ws['N{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
-                            sanrenpuku_win += 1
-                            sanrenpuku_money += ws['Q{}'.format(i+1)].value
-                        # True: 三連単予測成功
-                        if ws['M{}'.format(i+1)].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
-                            sanrentan_win += 1
-                            sanrentan_money += ws['P{}'.format(i+1)].value
+                        if ws[cell_col+columns_row].value == '本命馬ランク' and ws[coord].value == rank:
+                            tansho_cnt += 1
+                            for i in range(1, ws.max_column):
+                                if ws.cell(column = i+1, row = int(columns_row)).value == '本命馬◎':
+                                    if ws.cell(column = i+1, row = int(cell_row)).value[-3:] == '(1)':
+                                        tansho_win[0] += 1
+                                        for j in range(1, ws.max_column):
+                                            if ws.cell(column = j+1, row = int(columns_row)).value == '単勝回収金額':
+                                                tansho_money += ws.cell(column = j+1, row = int(cell_row)).value
+                                    elif ws.cell(column = i+1, row = int(cell_row)).value[-3:] == '(2)':
+                                        tansho_win[1] += 1
+                                    elif ws.cell(column = i+1, row = int(cell_row)).value[-3:] == '(3)':
+                                        tansho_win[2] += 1
+                                    else:
+                                        tansho_win[3] += 1
+                            sanren_cnt += 1
+                            for i in range(1, ws.max_column):
+                                if ws.cell(column = i+1, row = int(columns_row)).value == '三連複オッズ':
+                                    # True: 三連複予測成功
+                                    if ws[ws.cell(column = i+1, row = int(cell_row)).coordinate].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                                        sanrenpuku_win += 1
+                                        for j in range(1, ws.max_column):
+                                            if ws.cell(column = j+1, row = int(columns_row)).value == '三連複流し回収金額':
+                                                sanrenpuku_money += ws.cell(column = j+1, row = int(cell_row)).value
+                                if ws.cell(column = i+1, row = int(columns_row)).value == '三連単オッズ':
+                                    # True: 三連単予測成功
+                                    if ws[ws.cell(column = i+1, row = int(cell_row)).coordinate].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
+                                        sanrentan_win += 1
+                                        for j in range(1, ws.max_column):
+                                            if ws.cell(column = j+1, row = int(columns_row)).value == '三連単流し回収金額':
+                                                sanrentan_money += ws.cell(column = j+1, row = int(cell_row)).value
                 if rank != '-':
                     return_df.loc[rank] = [
                                             str(tansho_win[0])+'-'+str(tansho_win[1])+'-'+str(tansho_win[2])+'-'+str(tansho_win[3]),
