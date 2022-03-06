@@ -1,44 +1,37 @@
+import sys
+sys.path.extend(['../'])
+
 import os
+import requests
+from module import make_venue_id_list
 # ログインに必要な情報を環境変数から取り出す
 USER = os.environ['private_gmail']
 PASS = os.environ['netkeiba_pass']
 
+url_login = "https://regist.netkeiba.com/account/?pid=login&action=auth"
+payload = {
+    'login_id': USER,
+    'pswd': PASS
+}
+# プレミアムアカウントのデータを利用するためnetkeibaにログイン
+session = requests.Session()
+session.post(url_login, data=payload)
+
 # スクレイピングする年の設定
 scrape_year='2022'
 
-# どのobjectiveを用いるか
-objective_type = "lambdarank"
-metric = "ndcg"
-
-# 利用しない特徴量の選択
-drop_list = ['date', 'jockey_id', 'breeder_id', 'owner_id', 'trainer_id', 'birthday', 'horse_id']
-# 単勝予測のparams
-params={
-    'objective': 'lambdarank',
-    'metric': 'ndcg',
-    'task': 'train',
-    'feature_pre_filter': False,
-    'boosting_type': 'gbdt',
-    'eval_at': [1000],
-    'lambda_l1': 2.0374919161324458e-05,
-    'lambda_l2': 5.198946634943905,
-    'num_leaves': 16,
-    'feature_fraction': 0.716,
-    'bagging_fraction': 1.0,
-    'bagging_freq': 0,
-    'min_child_samples': 20
-    }
-
-# race_id_listの要素からしたR情報を削除したもの
-venue_id_list = ["2022070102", '2022060102']
 # レース日
 date = '2022/01/08'
 # 日付の分割
 year = date[0:4]
 month = date[5:7]
-if month[0] == '0': month = month[1]
 day = date[8:10]
+if month[0] == '0': month = month[1]
 if day[0] == '0': day = day[1]
+
+# race_id_listの要素からしたR情報を削除したもの
+venue_id_list = make_venue_id_list(session, date.replace('/', ''))
+# venue_id_list = ['2022060204', '2022090108']
 
 # xlsxファイルを保存したいpath
 excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.xlsx'
@@ -46,11 +39,11 @@ excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.x
 tables_path = ['../_dat/train_data/overall/return_tables.pickle']
 
 # dfのcolumns
-predict_columns = ["本命馬ランク", "レースランク", "本命馬◎", "対抗馬○", "単穴馬▲", "連下馬1△", "連下馬2△", "連下馬3△", "頭数"]
-result_columns = ["単勝オッズ", "三連単結果", "三連単オッズ", "三連複オッズ", "単勝回収金額", "三連単回収金額", "三連複回収金額"]
-return_columns = ["着順", "単勝的中率", "複勝的中率(◎)", "三連単的中率", "三連複的中率", "単勝回収率", "三連単回収率", "三連複回収率"]
-fukusho_columns = ["本命馬◎", "対抗馬○", "単穴馬▲", "ワイド"]
-total_columns = ['単勝A', '複勝A', '三連単A', '三連複A', '単勝B', '複勝B', '三連単B', '三連複B', '単勝C', '複勝C', '三連単C', '三連複C', '単勝ABC', '複勝ABC', '三連単ABC', '三連複ABC', '単勝', '三連単', '三連複']
+predict_columns = ["本命馬ランク", "レースクラス", "本命馬◎", "対抗馬○", "単穴馬▲", "4着予想△", "5着予想☆", "6着予想×", "頭数"]
+result_columns = ["単勝オッズ", "三連単結果", "三連単オッズ", "三連複オッズ", "単勝回収金額", "三連単流し回収金額", "三連複流し回収金額"]
+return_columns = ["着順", "単勝的中率", "複勝的中率(◎)", "三連単流し的中率", "三連複流し的中率", "単勝回収率", "三連単流し回収率", "三連複流し回収率"]
+fukusho_columns = ["本命馬◎", "対抗馬○", "単穴馬▲", "ワイド", "三連複", "三連単"]
+total_columns = ['単勝A', '複勝A', '三連単流しA', '三連複流しA', '単勝B', '複勝B', '三連単流しB', '三連複流しB', '単勝C', '複勝C', '三連単流しC', '三連複流しC', '単勝ABC', '複勝ABC', '三連単流しABC', '三連複流しABC', '単勝', '三連単流し', '三連複流し']
 
 # 開催場所をidに変換するための辞書
 place_dict = {
@@ -82,3 +75,27 @@ for venue_id in venue_id_list:
     file_path[venue_id] = '../results/'+year+'/pdf/'+month+'月/'+sheet_name[venue_id]+'.pdf'
 file_path[month+'月収支'] = '../results/'+year+'/pdf/'+month+'月/'+month+'月収支.pdf'
 file_path[month+'月的中率'] = '../results/'+year+'/pdf/'+month+'月/'+month+'月的中率.pdf'
+
+# どのobjectiveを用いるか
+objective_type = "lambdarank"
+metric = "ndcg"
+
+# 利用しない特徴量の選択
+drop_list = ['date', 'jockey_id', 'breeder_id', 'owner_id', 'trainer_id', 'birthday', 'horse_id']
+
+# 単勝予測のparams
+params={
+    'objective': 'lambdarank',
+    'metric': 'ndcg',
+    'task': 'train',
+    'feature_pre_filter': False,
+    'boosting_type': 'gbdt',
+    'eval_at': [1000],
+    'lambda_l1': 2.0374919161324458e-05,
+    'lambda_l2': 5.198946634943905,
+    'num_leaves': 16,
+    'feature_fraction': 0.716,
+    'bagging_fraction': 1.0,
+    'bagging_freq': 0,
+    'min_child_samples': 20
+    }
