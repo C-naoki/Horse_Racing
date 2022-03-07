@@ -100,6 +100,8 @@ if __name__ == '__main__':
                 fav_rank = 'C'
             elif np.isnan(race_proba.iat[0, 1]) or (race_proba.iat[0, 1] == race_proba.iat[2, 1]):
                 fav_rank = 'x'
+                for j in range(len(proba[1])):
+                    proba_table.loc[proba[0], 'score'][j] = 0
             else:
                 fav_rank = '-'
             # race_id_dictの長さが6に満たない場合、'-'で埋める
@@ -160,9 +162,9 @@ if __name__ == '__main__':
                                                 str(race_proba.iat[3, 0])+' ('+real_arrival[3]+')',
                                                 str(race_proba.iat[4, 0])+' ('+real_arrival[4]+')',
                                                 str(race_proba.iat[5, 0])+' ('+real_arrival[5]+')',
+                                                sanrentan_results,
                                                 proba[1]['horse_num'][-1],
                                                 tansho_odds,
-                                                sanrentan_results,
                                                 sanrentan_odds,
                                                 sanrenpuku_odds,
                                                 tansho_money,
@@ -246,7 +248,6 @@ if __name__ == '__main__':
                 if 1 < int(row[0].coordinate[1:]) <= ws.max_row:
                     for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)['score'].head(6)):
                         coord = cell.coordinate
-                        if np.isnan(score): score = 0
                         score = max(min(score, 3.5), 0)
                         colorcode = rgb2hex(cmap(score/3.5)).replace('#', '')
                         ws[coord].fill = PatternFill(patternType='solid', fgColor=colorcode)
@@ -363,27 +364,31 @@ if __name__ == '__main__':
             no_cnt = 0
             wb = xl.load_workbook(excel_path)
             ws = wb[sheet_name[venue_id]]
-            for j in range(1, ws.max_row):
+            for row in ws.rows:
                 wide_chk = 0
                 sanrenpuku_chk = 0
-                sanrentan_chk = 0
-                if ws['B{}'.format(j+1)].value == 'x':
-                    no_cnt += 1
-                else:
-                    for i, col in enumerate(['D', 'E', 'F']):
-                        if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)', '(3)']:
-                            fukusho_win[i] += 1
-                            sanrenpuku_chk += 1
-                        if ws[col+'{}'.format(j+1)].value[-3:] in ['(1)', '(2)']:
-                            wide_chk += 1
-                    if wide_chk >= 2:
-                        wide_win += 1
-                    if sanrenpuku_chk == 3:
-                        sanrenpuku_win += 1
-                    if (    ws['D{}'.format(j+1)].value[-3:] == '(1)'
-                        and ws['E{}'.format(j+1)].value[-3:] == '(2)'
-                        and ws['F{}'.format(j+1)].value[-3:] == '(3)'):
-                        sanrentan_win += 1
+                winning_horse = np.zeros(3, dtype = int)
+                for cell in row:
+                    coord = cell.coordinate
+                    cell_col = re.sub(r"[^a-zA-Z]", "", coord)
+                    cell_row = re.sub(r"\D", "", coord)
+                    if cell_row == columns_row: break
+                    if ws[cell_col+columns_row].value == '本命馬ランク' and ws[coord].value == 'x':
+                        no_cnt += 1
+                        break
+                    else:
+                        for i, col_name in enumerate(['本命馬◎', '対抗馬○', '単穴馬▲']):
+                            if ws[cell_col+columns_row].value == col_name:
+                                try: winning_horse[i] = (lambda x: x if x < 4 else 0)(int(re.sub('[()]', '', ws[coord].value[-3:])))
+                                except: winning_horse[i] = 0
+                                if winning_horse[i] > 0:
+                                    fukusho_win[i] += 1
+                if np.count_nonzero(winning_horse) >= 2:
+                    wide_win += 1
+                if np.count_nonzero(winning_horse) == 3:
+                    sanrenpuku_win += 1
+                if np.all(winning_horse == np.array([1, 2, 3])):
+                    sanrentan_win += 1
             fukusho_df.loc['全体'] = [
                                         str(fukusho_win[0])+'/'+str(12-no_cnt),
                                         str(fukusho_win[1])+'/'+str(12-no_cnt),
