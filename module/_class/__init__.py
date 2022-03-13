@@ -5,5 +5,6 @@ from .Peds import Peds
 from .Results import Results
 from .Return import Return
 from .ShutubaTable import ShutubaTable
+from .DecorateExcel import DecorateExcel
 from ..functions import *
 import pandas as pd

@@ -24,13 +24,13 @@ import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     # インスタンスの作成
-    hr = c.HorseResults(_dat.horse_results['overall'])
-    p = c.Peds(_dat.ped_results['overall'])
-    r = c.Results(_dat.race_results['overall'], hr, p)
+    horse_results = c.HorseResults(_dat.horse_results['overall'])
+    peds = c.Peds(_dat.ped_results['overall'])
+    results = c.Results(_dat.race_results['overall'], horse_results, peds)
 
     # 説明変数と目的変数に分割
-    X = r.data_c.drop(drop_list+['odds', 'rank'], axis=1)
-    y = r.data_c['rank']
+    X = results.data_c.drop(drop_list+['odds', 'rank'], axis=1)
+    y = results.data_c['rank']
 
     # ランキング学習のためのクエリの作成
     query = list()
@@ -46,13 +46,13 @@ if __name__ == '__main__':
     # 'https://race.netkeiba.com/race/shutuba.html?race_id=' + race_id (出馬表)
     for venue_id in venue_id_list:
         # 出馬表インスタンスの作成
-        st = c.ShutubaTable.scrape(race_id_dict, date, venue_id, r, hr, p)
+        shutuba_table = c.ShutubaTable.scrape(race_id_dict, date, venue_id, results, horse_results, peds)
         # ModelEvaluator
-        me = c.ModelEvaluator(lgb_clf, tables_path, kind=1, obj=objective_type)
-        X_fact = st.data_c.drop(drop_list, axis=1)
+        model_evaluator = c.ModelEvaluator(lgb_clf, tables_path, kind=1, obj=objective_type)
+        X_fact = shutuba_table.data_c.drop(drop_list, axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
-        pred = me.predict_proba(X_fact, train=False)
-        proba_table = st.data_c[['horse_num']].astype('int').copy()
+        pred = model_evaluator.predict_proba(X_fact, train=False)
+        proba_table = shutuba_table.data_c[['horse_num']].astype('int').copy()
         proba_table['score'] = pred.astype('float64')
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
@@ -82,14 +82,14 @@ if __name__ == '__main__':
                                     columns = predict_columns
                                 )
         # 三連複が的中したかどうか記録する配列
-        hits_sanrenpuku = [0] * st.data_c.index.unique().shape[0]
+        hits_sanrenpuku = [0] * shutuba_table.data_c.index.unique().shape[0]
         for i, proba in enumerate(proba_table.groupby(level=0)):
             if proba[0][-2] == '0':
-                race_num = ' '+proba[0][-1]
+                race_num = ''+proba[0][-1]
             else:
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
-            race_class = class_dict[st.data_c.loc[proba[0], 'class'][0]]
+            race_class = class_dict[shutuba_table.data_c.loc[proba[0], 'class'][0]]
             # 本命馬のランクの決定
             if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2.5:
                 fav_rank = 'A'
@@ -184,76 +184,11 @@ if __name__ == '__main__':
                                                 proba[1]['horse_num'][-1]
                                                 ]
         if exists_return_tables:
-            # 予測及びオッズデータをxlsxファイルに書き込む
-            writer = pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', if_sheet_exists='replace')
-            predict_df.to_excel(writer, sheet_name=sheet_name[venue_id], startrow=0)
-            writer.save()
-            # 追加したデータの修正
-            wb = xl.load_workbook(excel_path)
-            ws = wb[sheet_name[venue_id]]
-            row_heading = 1 # 行見出し
-            col_heading1 = 1 # 列見出し
-            # 本命馬の情報が書かれているエクセル座標の列部分
-            fav_col = predict_columns.index('1着予想◎')+2
-            # 表の左上に開催地の追加
-            ws.cell(column=row_heading, row=col_heading1).value = venue_name[venue_id]
-            ws.cell(column=row_heading, row=col_heading1).font = Font(bold=True)
-            # 通常の線と二重線を用意
-            side1 = Side(style='thin', color='000000')
-            side2 = Side(style='double', color='000000')
-            border1 = Border(top=side1, bottom=side1, left=side1, right=side1)
-            border2 = Border(top=side1, bottom=side1, left=side1, right=side2)
-            for col in ws.columns:
-                max_length = 0
-                for i, cell in enumerate(col):
-                    # エクセル座標
-                    coord = cell.coordinate
-                    max_length = max(max_length, len(str(cell.value)))
-                    # 文字を中心に配置する
-                    cell.alignment = Alignment(horizontal = 'center', 
-                                        vertical = 'center',
-                                        wrap_text = False)
-                    # 表のindex及びcolumnsが記載された位置の背景色を黒とする
-                    if cell.row == row_heading or cell.column == col_heading1:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[coord].font = Font(color='ffffff')
-                    # 残りのセルの背景色を白とする
-                    else:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
-                        ws[coord].font = Font(color='000000')
-                        # ランクA及び着順の予想が的中した時、セルをオレンジ色にする
-                        if (   (ws[coord].value == 'A')
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '単勝オッズ' and '(1)' in ws.cell(column=fav_col, row=cell.row).value)
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連複オッズ' and hits_sanrenpuku[i-1] == 3)
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=cell.row).coordinate].value and hits_sanrenpuku[i-1] == 3)):
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
-                        # ランクB及び着順の予想が3着以内及び三連複の3頭中2頭的中した時、セルを水色にする
-                        if (   (ws[coord].value == 'B')
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '単勝オッズ' and ('(2)' in ws.cell(column=fav_col, row=cell.row).value
-                            or '(3)' in ws[ws.cell(column=fav_col, row=cell.row).coordinate].value))
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連複オッズ' and hits_sanrenpuku[i-1] == 2)
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=cell.row).coordinate].value and hits_sanrenpuku[i-1] == 2)):
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
-                        # ランクC及び及び三連複の3頭中1頭のみ的中した時、セルを灰色にする
-                        if (   (ws[coord].value == 'C')
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連複オッズ' and hits_sanrenpuku[i-1] == 1)
-                            or (ws.cell(column=cell.column, row=col_heading1).value == '三連単オッズ' and '(1)' in ws[ws.cell(column=fav_col, row=cell.row).coordinate].value and hits_sanrenpuku[i-1] == 1)):
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                    # 線の記入
-                    ws[coord].border = border1
-                adjusted_width = max_length * 2.08
-                ws.column_dimensions[col[0].column_letter].width = adjusted_width
-            # 馬のスコアごとにカラーリング(赤色のグラデーション)
-            cmap = plt.get_cmap('Reds')
-            for row in ws.rows:
-                if 1 < int(row[0].coordinate[1:]) <= ws.max_row:
-                    for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(int(row[0].coordinate[1:])-1).zfill(2)].sort_values('score', ascending = False)['score'].head(6)):
-                        coord = cell.coordinate
-                        score = max(min(score, 3.5), 0)
-                        colorcode = rgb2hex(cmap(score/3.5)).replace('#', '')
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor=colorcode)
-            wb.save(excel_path)
-            wb.close()
+            # predict_dfをexcelに追記
+            decorate_excel = c.DecorateExcel(predict_df, excel_path, sheet_name[venue_id], mode = 'new')
+            decorate_excel.decorate_excelsheet()
+            decorate_excel.coloring_by_score(proba_table, venue_id)
+            decorate_excel.save()
 
             # return_dfの作成
             all_win = np.zeros(4, dtype = int)
@@ -280,14 +215,14 @@ if __name__ == '__main__':
                     for cell in row:
                         coord = cell.coordinate
                         # True: 単勝予測成功
-                        if ws.cell(column=cell.column, row=col_heading1).value == '本命馬ランク' and ws[coord].value == rank:
+                        if ws.cell(column=cell.column, row=decorate_excel.col_heading).value == '本命馬ランク' and ws[coord].value == rank:
                             tansho_cnt += 1
                             for i in range(1, ws.max_column):
-                                if ws.cell(column = i+1, row = col_heading1).value == '1着予想◎':
+                                if ws.cell(column = i+1, row = decorate_excel.col_heading).value == '1着予想◎':
                                     if ws.cell(column = i+1, row = cell.row).value[-3:] == '(1)':
                                         tansho_win[0] += 1
                                         for j in range(1, ws.max_column):
-                                            if ws.cell(column = j+1, row = col_heading1).value == '単勝回収金額':
+                                            if ws.cell(column = j+1, row = decorate_excel.col_heading).value == '単勝回収金額':
                                                 tansho_money += ws.cell(column = j+1, row = cell.row).value
                                     elif ws.cell(column = i+1, row = cell.row).value[-3:] == '(2)':
                                         tansho_win[1] += 1
@@ -297,19 +232,19 @@ if __name__ == '__main__':
                                         tansho_win[3] += 1
                             sanren_cnt += 1
                             for i in range(1, ws.max_column):
-                                if ws.cell(column = i+1, row = col_heading1).value == '三連複オッズ':
+                                if ws.cell(column = i+1, row = decorate_excel.col_heading).value == '三連複オッズ':
                                     # True: 三連複予測成功
                                     if ws[ws.cell(column = i+1, row = cell.row).coordinate].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                                         sanrenpuku_win += 1
                                         for j in range(1, ws.max_column):
-                                            if ws.cell(column = j+1, row = col_heading1).value == '三連複流し回収金額':
+                                            if ws.cell(column = j+1, row = decorate_excel.col_heading).value == '三連複流し回収金額':
                                                 sanrenpuku_money += ws.cell(column = j+1, row = cell.row).value
-                                if ws.cell(column = i+1, row = col_heading1).value == '三連単オッズ':
+                                if ws.cell(column = i+1, row = decorate_excel.col_heading).value == '三連単オッズ':
                                     # True: 三連単予測成功
                                     if ws[ws.cell(column = i+1, row = cell.row).coordinate].fill == PatternFill(patternType='solid', fgColor='ffbf7f'):
                                         sanrentan_win += 1
                                         for j in range(1, ws.max_column):
-                                            if ws.cell(column = j+1, row = col_heading1).value == '三連単流し回収金額':
+                                            if ws.cell(column = j+1, row = decorate_excel.col_heading).value == '三連単流し回収金額':
                                                 sanrentan_money += ws.cell(column = j+1, row = cell.row).value
                 if rank != '-':
                     return_df.loc[rank] = [
@@ -369,18 +304,18 @@ if __name__ == '__main__':
                 winning_horse = np.zeros(3, dtype = int)
                 for cell in row:
                     coord = cell.coordinate
-                    if cell.row == col_heading1: break
-                    if ws.cell(column=cell.column, row=col_heading1).value == '本命馬ランク' and ws[coord].value == 'x':
+                    if cell.row == decorate_excel.col_heading: break
+                    if ws.cell(column=cell.column, row=decorate_excel.col_heading).value == '本命馬ランク' and ws[coord].value == 'x':
                         no_cnt += 1
                         break
                     else:
                         for i, col_name in enumerate(['1着予想◎', '2着予想○', '3着予想▲']):
-                            if ws.cell(column=cell.column, row=col_heading1).value == col_name:
+                            if ws.cell(column=cell.column, row=decorate_excel.col_heading).value == col_name:
                                 try: winning_horse[i] = (lambda x: x if x < 4 else 0)(int(re.sub('[()]', '', ws[coord].value[-3:])))
                                 except: winning_horse[i] = 0
                                 if winning_horse[i] > 0:
                                     fukusho_win[i] += 1
-                if np.count_nonzero(winning_horse) >= 2:
+                if np.all([i in winning_horse for i in [1, 2]]):
                     wide_win += 1
                 if np.count_nonzero(winning_horse) == 3:
                     sanrenpuku_win += 1
@@ -398,103 +333,16 @@ if __name__ == '__main__':
             wb.close()
 
             # return_dfをexcelに追記
-            wb = xl.load_workbook(excel_path)
-            ws = wb[sheet_name[venue_id]]
-            writer = pd.ExcelWriter(excel_path, engine='openpyxl')
-            writer.book = wb
-            writer.sheets = {ws.title: ws for ws in wb.worksheets}
-            space_row = writer.sheets[sheet_name[venue_id]].max_row+1 # 上の表と隣接しないための一行分の空白
-            col_heading2 = writer.sheets[sheet_name[venue_id]].max_row+2
-            return_df.to_excel(writer, sheet_name=sheet_name[venue_id], startrow=space_row)
-            # excelファイルの装飾
-            ws.cell(column=row_heading, row=col_heading2).value = '成績'
-            ws.cell(column=row_heading, row=col_heading2).font = Font(bold=True)
-            for col in ws.columns:
-                max_length = 0
-                for i, cell in enumerate(col):
-                    coord = cell.coordinate
-                    max_length = max(max_length, len(str(cell.value)))
-                    # 文字を中心に配置する
-                    cell.alignment = Alignment(horizontal = 'center', 
-                                        vertical = 'center',
-                                        wrap_text = False)
-                    if cell.row < space_row: continue
-                    # 必要箇所にカラーリング
-                    if cell.row == space_row:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
-                        ws[coord].font = Font(color='000000')
-                        continue
-                    elif ( cell.column == row_heading # 行見出し
-                        or cell.row == col_heading2 and cell.column<=len(return_columns)+1): # 列見出し
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[coord].font = Font(color='ffffff')
-                        if ws[coord].value == 'A':
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='ffbf7f')
-                            ws[coord].font = Font(color='000000')
-                        if ws[coord].value == 'B':
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='a8d3ff')
-                            ws[coord].font = Font(color='000000')
-                        if ws[coord].value == 'C':
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='d3d3d3')
-                            ws[coord].font = Font(color='000000')
-                        if ws[coord].value == 'ABC':
-                            ws[coord].fill = PatternFill(patternType='solid', fgColor='50C878')
-                            ws[coord].font = Font(color='000000')
-                    else:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
-                        ws[coord].font = Font(color='000000')
-                        # セルのフォーマットをパーセンテージにする
-                        if ws.cell(column=cell.column, row=col_heading2).value in ['単勝回収率', '三連単流し回収率', '三連複流し回収率']:
-                            cell.number_format = '0.00%'
-                        # 枠線を引く
-                        if cell.column<=len(return_columns)+1:
-                            ws[coord].border = border1
-                adjusted_width = max_length * 2.08
-                ws.column_dimensions[col[0].column_letter].width = adjusted_width
-            writer.save()
-            wb.save(excel_path)
-            wb.close()
+            decorate_excel = c.DecorateExcel(return_df, excel_path, sheet_name[venue_id])
+            decorate_excel.decorate_excelsheet(
+                                                pct_list=['単勝回収率', '三連単流し回収率', '三連複流し回収率']
+                                                )
+            decorate_excel.save()
 
             # fukusho_dfをexcelに追記
-            wb = xl.load_workbook(excel_path)
-            ws = wb[sheet_name[venue_id]]
-            writer = pd.ExcelWriter(excel_path, engine='openpyxl')
-            writer.book = wb
-            writer.sheets = {ws.title: ws for ws in wb.worksheets}
-            space_row = writer.sheets[sheet_name[venue_id]].max_row+1 # 上の表と隣接しないための一行分の空白
-            col_heading3 = writer.sheets[sheet_name[venue_id]].max_row+2
-            fukusho_df.to_excel(writer, sheet_name=sheet_name[venue_id], startrow=space_row)
-            # excelファイルの装飾
-            ws.cell(column=row_heading, row=col_heading3).value = '成績'
-            ws.cell(column=row_heading, row=col_heading3).font = Font(bold=True)
-            for col in ws.columns:
-                max_length = 0
-                for i, cell in enumerate(col):
-                    coord = cell.coordinate
-                    max_length = max(max_length, len(str(cell.value)))
-                    # 文字を中心に配置する
-                    cell.alignment = Alignment(horizontal = 'center', 
-                                        vertical = 'center',
-                                        wrap_text = False)
-                    if cell.row < space_row: continue
-                    if cell.row == space_row:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
-                        ws[coord].font = Font(color='000000')
-                        continue
-                    elif ( cell.column == row_heading # 行見出し
-                        or cell.row == col_heading3 and cell.column<=len(fukusho_columns)+1): # 列見出し
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='000000')
-                        ws[coord].font = Font(color='ffffff')
-                    else:
-                        ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
-                        ws[coord].font = Font(color='000000')
-                        if cell.column<=len(fukusho_columns)+1:
-                            ws[coord].border = border1
-                adjusted_width = max_length * 2.08
-                ws.column_dimensions[col[0].column_letter].width = adjusted_width
-            writer.save()
-            wb.save(excel_path)
-            wb.close()
+            decorate_excel = c.DecorateExcel(fukusho_df, excel_path, sheet_name[venue_id])
+            decorate_excel.decorate_excelsheet()
+            decorate_excel.save()
 
             # ディレクトリを自動作成
             if not os.path.isdir(dir_path):
@@ -510,7 +358,7 @@ if __name__ == '__main__':
             m.make_hit_sheet(month+'月的中率', excel_path, file_path[month+'月的中率'], total_columns)
 
             # 出力結果が得られた要因
-            print(me.feature_importance(X, type='split'))
+            print(model_evaluator.feature_importance(X, type='split'))
         # (まだレースが開催されていない場合)予想結果の表示
         else:
             print('<'+venue_name[venue_id]+'>')
