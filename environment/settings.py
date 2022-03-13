@@ -4,6 +4,7 @@ sys.path.extend(['../'])
 import os
 import requests
 from module import make_venue_id_list
+
 # ログインに必要な情報を環境変数から取り出す
 USER = os.environ['private_gmail']
 PASS = os.environ['netkeiba_pass']
@@ -21,7 +22,7 @@ session.post(url_login, data=payload)
 scrape_year='2022'
 
 # レース日
-date = '2022/01/08'
+date = '2022/01/09'
 # 日付の分割
 year = date[0:4]
 month = date[5:7]
@@ -29,9 +30,8 @@ day = date[8:10]
 if month[0] == '0': month = month[1]
 if day[0] == '0': day = day[1]
 
-# race_id_listの要素からしたR情報を削除したもの
+# race_id_listの要素からR情報を削除したもの
 venue_id_list = make_venue_id_list(session, date.replace('/', ''))
-# venue_id_list = ['2022060204', '2022090108']
 
 # xlsxファイルを保存したいpath
 excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.xlsx'
@@ -39,10 +39,10 @@ excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.x
 tables_path = ['../_dat/train_data/overall/return_tables.pickle']
 
 # dfのcolumns
-predict_columns = ["本命馬ランク", "レースクラス", "本命馬◎", "対抗馬○", "単穴馬▲", "4着予想△", "5着予想☆", "6着予想×", "頭数"]
-result_columns = ["単勝オッズ", "三連単結果", "三連単オッズ", "三連複オッズ", "単勝回収金額", "三連単流し回収金額", "三連複流し回収金額"]
+predict_columns = ["本命馬ランク", "レースクラス", "1着予想◎", "2着予想○", "3着予想▲", "4着予想△", "5着予想☆", "6着予想×", "結果"]
+result_columns = ["頭数", "単勝オッズ", "三連単オッズ", "三連複オッズ", "単勝回収金額", "三連単流し回収金額", "三連複流し回収金額"]
 return_columns = ["着順", "単勝的中率", "複勝的中率(◎)", "三連単流し的中率", "三連複流し的中率", "単勝回収率", "三連単流し回収率", "三連複流し回収率"]
-fukusho_columns = ["本命馬◎", "対抗馬○", "単穴馬▲", "ワイド", "三連複", "三連単"]
+fukusho_columns = ["1着予想◎", "2着予想○", "3着予想▲", "ワイド", "三連複", "三連単"]
 total_columns = ['単勝A', '複勝A', '三連単流しA', '三連複流しA', '単勝B', '複勝B', '三連単流しB', '三連複流しB', '単勝C', '複勝C', '三連単流しC', '三連複流しC', '単勝ABC', '複勝ABC', '三連単流しABC', '三連複流しABC', '単勝', '三連単流し', '三連複流し']
 
 # 開催場所をidに変換するための辞書
@@ -54,7 +54,6 @@ place_dict = {
 race_type_dict = {
     '芝': '芝', 'ダ': 'ダート', '障': '障害'
 }
-
 # idからレースクラスに変換するための辞書
 class_dict = {
     0: '新馬', 1: '未勝利', 2: '1勝クラス', 3: '2勝クラス', 4: '3勝クラス', 5: 'オープン'
