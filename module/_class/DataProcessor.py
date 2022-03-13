@@ -45,7 +45,7 @@ class DataProcessor:
         self.data_h = self.data_h.merge(temp_df, left_on='horse_id', right_index=True, how='left')
         if past:
             for i, n_samples in enumerate(n_samples_list2):
-                self.data_h = hr.merge_past_all(self.data_h, n_samples=n_samples, chk=i)
+                self.data_h = hr.merge_past_all(self.data_h, n_samples=n_samples, isZero=i)
         if avg:
             for n_samples in n_samples_list1:
                 self.data_h = hr.merge_average_all(self.data_h, n_samples=n_samples)
