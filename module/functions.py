@@ -3,8 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+import lightgbm as lgb
 import openpyxl as xl
 import re
+import requests
 
 from openpyxl.styles import PatternFill, Font
 from openpyxl.utils import column_index_from_string
@@ -373,13 +375,10 @@ def isExist_date(session, date):
 
 def make_venue_id_list(session, date, num='all'):
     venue_id_list = set()
-    if isExist_date(session, date):
-        url = 'https://db.netkeiba.com/race/list/' + date
-        html = session.get(url)
-        html.encoding = "EUC-JP"
-        soup = BeautifulSoup(html.content, "html.parser")
-        for race_list in soup.find_all('dl', class_="race_top_hold_list"):
-            for race_info in race_list.find_all('a'):
-                venue_id_list.add(re.findall(r'\d+', race_info.get('href'))[0][:10])
+    url = 'https://race.netkeiba.com/top/race_list_sub.html?kaisai_date=' + date
+    r = requests.get(url)
+    soup = BeautifulSoup(r.content, "html.parser")
+    for race_list in soup.find_all('li'):
+        venue_id_list.add(re.findall(r'\d+', race_list.find_all('a')[0].get('href'))[0][:10])
     if num=='all': return list(venue_id_list)
     else: return list(venue_id_list)[:num]
