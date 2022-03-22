@@ -104,10 +104,14 @@ class DataProcessor:
         race_types = df['race_type'].unique()
         ground_states = df['ground_state'].unique()
         sexes = df['sex'].unique()
-
-        weather_dict = dict(zip(weathers, list(range(len(weathers)))))
-        race_type_dict = dict(zip(race_types, list(range(len(race_types)))))
-        ground_state_dict = dict(zip(ground_states, list(range(len(ground_states)))))
-        sex_dict = dict(zip(sexes, list(range(len(sexes)))))
-        df = df.replace(weather_dict).replace(race_type_dict).replace(ground_state_dict).replace(sex_dict)
+        turns = df['turn'].unique()
+        classes = df['class'].unique()
+        df['weather'] = pd.Categorical(df['weather'], weathers)
+        df['race_type'] = pd.Categorical(df['race_type'], race_types)
+        df['ground_state'] = pd.Categorical(df['ground_state'], ground_states)
+        df['sex'] = pd.Categorical(df['sex'], sexes)
+        df['turn'] = pd.Categorical(df['turn'], turns)
+        df['class'] = pd.Categorical(df['class'], classes)
+        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', 'sex', 'turn', 'class'], drop_first=True)
+        
         self.data_c = df

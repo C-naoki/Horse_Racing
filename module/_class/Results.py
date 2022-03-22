@@ -78,6 +78,7 @@ class Results(DataProcessor):
                                 df["race_type"] = [text] * len(df)
                             if "障" in text:
                                 df["race_type"] = ["障害"] * len(df)
+                                df["turn"] = ["障害"] * len(df)
                             if "m" in text:
                                 df["course_len"] = [int(re.findall(r"(\d+)m", text)[0])] * len(df)
                             if text in ["良", "稍重", "重", "不良"]:
@@ -87,23 +88,23 @@ class Results(DataProcessor):
                             if "年" in text:
                                 df["date"] = [text] * len(df)
                             if "右" in text:
-                                df["turn"] = [0] * len(df)
+                                df["turn"] = ["右"] * len(df)
                             elif "左" in text:
-                                df["turn"] = [1] * len(df)
+                                df["turn"] = ["左"] * len(df)
                             elif "直線" in text:
-                                df["turn"] = [2] * len(df)
+                                df["turn"] = ["直線"] * len(df)
                             if "新馬" in text:
-                                df["class"] = [0] * len(df)
+                                df["class"] = ["新馬"] * len(df)
                             elif "未勝利" in text:
-                                df["class"] = [1] * len(df)
+                                df["class"] = ["未勝利"] * len(df)
                             elif "1勝クラス" in text or "500万下" in text:
-                                df["class"] = [2] * len(df)
+                                df["class"] = ["1勝クラス"] * len(df)
                             elif "2勝クラス" in text or "1000万下" in text:
-                                df["class"] = [3] * len(df)
+                                df["class"] = ["2勝クラス"] * len(df)
                             elif "3勝クラス" in text or "1600万下" in text:
-                                df["class"] = [4] * len(df)
+                                df["class"] = ["3勝クラス"] * len(df)
                             elif "オープン" in text:
-                                df["class"] = [5] * len(df)
+                                df["class"] = ["オープン"] * len(df)
                         df["race_num"] = [int(race_id[-2:])] * len(df)
                         df["day"] = [int(race_id[8:10])] * len(df)
                         df["kai"] = [int(race_id[6:8])] * len(df)

@@ -112,14 +112,8 @@ class HorseResults:
             elif n==1:
                 return int(re.findall(r'\d+', x)[0])
         def remarks(x):
-            if x == '出遅れ':
-                return 1
-            elif x == '出脚鈍い':
-                return 2
-            elif x == '躓く':
-                return 3
-            elif x == '好発':
-                return 4
+            if x in ['出遅れ', '出脚鈍い', '躓く', '好発']:
+                return x
             else:
                 return 0
         # first_corner: 1コーナー(約1/5)通過時の着順
