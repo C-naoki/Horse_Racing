@@ -27,7 +27,7 @@ class DataProcessor:
         self.data_c = pd.DataFrame()
     
     # 全てのn_samplesごとにhorse_dataを追加する関数
-    def merge_horse_results(self, hr, n_samples_list1=[5, 9, 'all'], n_samples_list2=[1, 2, 3], past=True, avg=True):
+    def merge_horse_results(self, hr, n_samples_list1=[5, 9, 'all'], n_samples_list2=[1, 2, 3, 4, 5], past=True, avg=True):
         """
         馬の過去成績データから、
         n_samples_listで指定されたレース分の着順と賞金の平均を追加してdata_hに返す
@@ -68,7 +68,7 @@ class DataProcessor:
         if len(self.no_peds) > 0:
             print('scrape peds at horse_id_list "no_peds"')
             
-    def process_categorical(self, le_horse, le_jockey):
+    def process_categorical(self, le_horse, le_jockey, n_samples_list1=[5, 9, 'all'], n_samples_list2=[1, 2, 3, 4, 5]):
         """
         カテゴリ変数を処理してdata_cに返す
         Parameters:
@@ -100,18 +100,26 @@ class DataProcessor:
         
         #そのほかのカテゴリ変数をpandasのcategory型に変換してからダミー変数化
         #列を一定にするため
-        weathers = df['weather'].unique()
-        race_types = df['race_type'].unique()
-        ground_states = df['ground_state'].unique()
-        sexes = df['sex'].unique()
-        turns = df['turn'].unique()
-        classes = df['class'].unique()
+        weathers = ["曇", "晴", "雨", "小雨", "小雪", "雪"]
+        race_types = ["芝", "ダート"]
+        ground_states = ["良", "稍重", "重", "不良"]
+        sexes = ['牡', '牝', 'セ']
+        turns = ['右', '左', '直線']
+        classes = ["新馬", "未勝利", "１勝クラス", "２勝クラス", "３勝クラス", "オープン"]
         df['weather'] = pd.Categorical(df['weather'], weathers)
         df['race_type'] = pd.Categorical(df['race_type'], race_types)
         df['ground_state'] = pd.Categorical(df['ground_state'], ground_states)
         df['sex'] = pd.Categorical(df['sex'], sexes)
         df['turn'] = pd.Categorical(df['turn'], turns)
         df['class'] = pd.Categorical(df['class'], classes)
-        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', 'sex', 'turn', 'class'], drop_first=True)
+        col_name_list = list()
+        for past, past_list in {'remark': ['0', '出遅れ', '出脚鈍い', '躓く', '好発']}.items():
+            for i in n_samples_list2:
+                col_name = 'p_'+past+'_'+str(i)+'R'
+                col_name_list.append(col_name)
+                df[col_name].fillna(0, inplace=True)
+                unique_data = past_list
+                df[col_name] = pd.Categorical(df[col_name], unique_data)
+        df = pd.get_dummies(df, columns=['weather', 'race_type', 'ground_state', 'sex', 'turn', 'class']+col_name_list, drop_first=True)
         
         self.data_c = df

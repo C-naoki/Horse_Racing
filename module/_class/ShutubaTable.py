@@ -26,7 +26,7 @@ class ShutubaTable(DataProcessor):
         self.process_categorical(r.le_horse, r.le_jockey)
 
     @classmethod
-    def scrape(cls, race_id_dict, date, venue_id, r, hr, p, n_samples=[[5, 9, 'all'], [1, 2, 3]], past=True, avg=False, ped=False):
+    def scrape(cls, race_id_dict, date, venue_id, r, hr, p, n_samples=[[5, 9, 'all'], [1, 2, 3, 4, 5]], past=True, avg=False, ped=False):
         race_id_list = race_id_dict[venue_id][venue_id[4:6]][venue_id[6:8]]
         place = venue_id[4:6]
         pbar = tqdm(total=len(race_id_list))
@@ -62,16 +62,18 @@ class ShutubaTable(DataProcessor):
                 if 'ダ' in text:
                     df['race_type'] = ['ダート'] * len(df)
                 if "右" in text:
-                    df["turn"] = [1] * len(df)
+                    df["turn"] = ['右'] * len(df)
                 elif "左" in text:
-                    df["turn"] = [2] * len(df)
+                    df["turn"] = ['左'] * len(df)
+                elif '直線' in text:
+                    df["turn"] = ['直線'] * len(df)
             texts = soup.find('div', attrs={'class': 'RaceData02'}).text
             texts = re.findall(r'\w+', texts)
             for text in texts:
                 if '賞金' in text:
                     df["prize"] = [float(texts[texts.index(text)+1])] * len(df)
                 if text in ["新馬", "未勝利", "１勝クラス", "２勝クラス", "３勝クラス", "オープン"]:
-                    df['class'] = [["新馬", "未勝利", "１勝クラス", "２勝クラス", "３勝クラス", "オープン"].index(text)] * len(df)
+                    df['class'] = [text] * len(df)
             df["race_num"] = [int(race_id[-2:])] * len(df)
             df["day"] = [int(race_id[8:10])] * len(df)
             df["kai"] = [int(race_id[6:8])] * len(df)
@@ -116,6 +118,12 @@ class ShutubaTable(DataProcessor):
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 使用する列を選択
-        df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
+        try:
+            df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
+        except:
+            # 未来の天気及び、馬場状況は判定できないため、それぞれ晴、良と仮定する。
+            df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len','race_type', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
+            df['weather'] = ['晴'] * len(df)
+            df['ground_state'] = ['良'] * len(df)
         
         self.data_p = df.rename(columns={'枠': '枠番'})
