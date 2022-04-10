@@ -22,7 +22,7 @@ session.post(url_login, data=payload)
 scrape_year='2022'
 
 # レース日
-date = '2022/01/09'
+date = '2022/03/26'
 # 日付の分割
 year = date[0:4]
 month = date[5:7]
@@ -31,7 +31,7 @@ if month[0] == '0': month = month[1]
 if day[0] == '0': day = day[1]
 
 # race_id_listの要素からR情報を削除したもの
-venue_id_list = make_venue_id_list(session, date.replace('/', ''))
+venue_id_list = make_venue_id_list(date.replace('/', ''))
 
 # xlsxファイルを保存したいpath
 excel_path = '/Users/naoki/git/Horse-Racing/results/'+year+'/xlsx/'+month+'月.xlsx'
@@ -90,10 +90,10 @@ params={
     'feature_pre_filter': False,
     'boosting_type': 'gbdt',
     'eval_at': [1000],
-    'lambda_l1': 2.0374919161324458e-05,
-    'lambda_l2': 5.198946634943905,
-    'num_leaves': 16,
-    'feature_fraction': 0.716,
+    'lambda_l1': 1.3020837198994648e-07,
+    'lambda_l2': 1.0558073318473672e-07,
+    'num_leaves': 31,
+    'feature_fraction': 0.6479999999999999,
     'bagging_fraction': 1.0,
     'bagging_freq': 0,
     'min_child_samples': 20
