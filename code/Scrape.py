@@ -50,7 +50,7 @@ new_return_tables, _ = c.Return.scrape(race_id_dict,
 print(new_return_tables)
 if len(new_return_tables) != 0: new_return_tables.to_pickle("../_dat/train_data/"+scrape_year+"/return_tables.pickle")
 
-m.update_data(_dat.race_results["overall"], _dat.race_results[scrape_year]).to_pickle("../_dat/train_data/overall/race_results.pickle")
-m.update_data(_dat.horse_results["overall"], _dat.horse_results[scrape_year]).to_pickle("../_dat/train_data/overall/horse_results.pickle")
-m.update_data(_dat.ped_results["overall"], _dat.ped_results[scrape_year]).to_pickle("../_dat/train_data/overall/ped_results.pickle")
-m.update_data(_dat.return_tables["overall"], _dat.return_tables[scrape_year]).to_pickle("../_dat/train_data/overall/return_tables.pickle")
+m.all_update_data(_dat.race_results).to_pickle("../_dat/train_data/overall/race_results.pickle")
+m.all_update_data(_dat.horse_results).to_pickle("../_dat/train_data/overall/horse_results.pickle")
+m.all_update_data(_dat.ped_results).to_pickle("../_dat/train_data/overall/ped_results.pickle")
+m.all_update_data(_dat.return_tables).to_pickle("../_dat/train_data/overall/return_tables.pickle")

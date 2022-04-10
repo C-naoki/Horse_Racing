@@ -15,7 +15,7 @@ from environment.settings import *
 
 
 class Results(DataProcessor):
-    def __init__(self, results, hr, p, obj="lambdarank", n_samples=[[5, 9, 'all'], [1, 2, 3]], past=True, avg=False, ped=False):
+    def __init__(self, results, hr, p, obj="lambdarank", n_samples=[[5, 9, 'all'], [1, 2, 3, 4, 5]], past=True, avg=False, ped=False):
         super(Results, self).__init__()
         self.data = results
         self.make_data(hr, p, obj, n_samples, past, avg, ped)
@@ -32,7 +32,7 @@ class Results(DataProcessor):
         self.merge_horse_results(hr, n_samples[0], n_samples[1], past, avg)
         if ped:
             self.merge_peds(p.peds_e)
-        self.process_categorical()
+        self.process_categorical(n_samples)
 
     @staticmethod
     def scrape(race_id_dict, pre_race_results=pd.DataFrame()):
@@ -179,9 +179,9 @@ class Results(DataProcessor):
 
         # 単勝をfloatに変換
         df["odds"] = df["単勝"].astype(float)
-        if obj == "binary": df['rank'] = df['着順'].map(lambda x:1 if x<4 else 0)
-        elif obj == "regression": df['rank'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
-        elif obj == "lambdarank": df['rank'] = df['着順'].map(lambda x:int(10/x) if x<4 else 0)
+        df['rank_binary'] = df['着順'].map(lambda x:1 if x<4 else 0)
+        df['rank_regression'] = df['着順'].map(lambda x:4-x if x<4 else 0) * (df["odds"])**0.5
+        df['rank_lambdarank'] = df['着順'].map(lambda x:int(10/x) if x<4 else 0)
         # 距離は10の位を切り捨てる
         df["course_len"] = df["course_len"].astype(float) // 100
         # 障害レースの削除
@@ -201,7 +201,7 @@ class Results(DataProcessor):
         self.data_p = df
     
     #カテゴリ変数の処理
-    def process_categorical(self):
+    def process_categorical(self, n_samples):
         self.le_horse = LabelEncoder().fit(self.data_h['horse_id'])
         self.le_jockey = LabelEncoder().fit(self.data_h['jockey_id'])
-        super().process_categorical(self.le_horse, self.le_jockey)
+        super().process_categorical(self.le_horse, self.le_jockey, n_samples_list1=n_samples[0], n_samples_list2=n_samples[1])
