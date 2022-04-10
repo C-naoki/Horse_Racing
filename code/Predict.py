@@ -29,8 +29,8 @@ if __name__ == '__main__':
     results = c.Results(_dat.race_results['overall'], horse_results, peds)
 
     # 説明変数と目的変数に分割
-    X = results.data_c.drop(drop_list+['odds', 'rank'], axis=1)
-    y = results.data_c['rank']
+    X = results.data_c.drop(drop_list+['odds', 'rank_binary', 'rank_regression', 'rank_lambdarank'], axis=1)
+    y = results.data_c['rank_lambdarank']
 
     # ランキング学習のためのクエリの作成
     query = list()
@@ -89,7 +89,7 @@ if __name__ == '__main__':
             else:
                 race_num = proba[0][-2:]
             race_proba = proba[1].sort_values('score', ascending = False).head(6)
-            race_class = class_dict[shutuba_table.data_c.loc[proba[0], 'class'][0]]
+            race_class = m.make_race_class(shutuba_table, proba)
             # 本命馬のランクの決定
             if race_proba.iat[0, 1] - race_proba.iat[1, 1] >= 1 and race_proba.iat[0, 1] >= 2.5:
                 fav_rank = 'A'
@@ -362,4 +362,4 @@ if __name__ == '__main__':
         # (まだレースが開催されていない場合)予想結果の表示
         else:
             print('<'+venue_name[venue_id]+'>')
-            print(tabulate(predict_df, predict_df.columns, tablefmt='presto', showindex=True))
+            print(tabulate(predict_df.iloc[:, :8], ['レース番号']+list(predict_df.columns), tablefmt='presto', showindex=True))

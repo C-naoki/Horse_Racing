@@ -35,6 +35,12 @@ def update_data(old, new):
     filtered_old = old[~old.index.isin(new.index)]
     return pd.concat([filtered_old, new])
 
+def all_update_data(dict, year_list=['2017', '2018', '2019', '2020', '2021', '2022']):
+    ans = pd.DataFrame()
+    for year in year_list:
+        ans = update_data(ans, dict[year])
+    return ans
+
 def split_data(df, test_size=0.3):
     sorted_id_list = df.sort_values('date').index.unique()
     train_id_list = sorted_id_list[: round(len(sorted_id_list) * (1 - test_size))]
@@ -144,8 +150,6 @@ def make_BoP_sheet(total, excel_path, pdf_path, total_columns):
         for i in range(2, 14):
             tansho_rank[ws_.cell(row=i, column=2).value] += 100
             sanren_rank[ws_.cell(row=i, column=2).value] += 2000
-        # tansho_rank['-'] = 1200 - tansho_rank['-']
-        # sanren_rank['-'] = 24000 - sanren_rank['-']
         for key in tansho_rank.keys():
             # tansho_rank及びsanren_rankを足し合わせたもの
             tansho_all_rank[key] += tansho_rank[key]
@@ -242,7 +246,6 @@ def make_BoP_sheet(total, excel_path, pdf_path, total_columns):
     for ws_ in wb.worksheets:
         i = i+1
         if total in ws.title:
-
             #先頭までの移動シート枚数
             Top_Sheet = i - 1
             #シート移動
@@ -373,7 +376,7 @@ def isExist_date(session, date):
             pass
     return False
 
-def make_venue_id_list(session, date, num='all'):
+def make_venue_id_list(date, num='all'):
     venue_id_list = set()
     url = 'https://race.netkeiba.com/top/race_list_sub.html?kaisai_date=' + date
     r = requests.get(url)
@@ -382,3 +385,10 @@ def make_venue_id_list(session, date, num='all'):
         venue_id_list.add(re.findall(r'\d+', race_list.find_all('a')[0].get('href'))[0][:10])
     if num=='all': return list(venue_id_list)
     else: return list(venue_id_list)[:num]
+
+def make_race_class(shutuba_table, proba):
+    df = shutuba_table.data_c.loc[proba[0], ['class_未勝利', 'class_１勝クラス', 'class_２勝クラス', 'class_３勝クラス', 'class_オープン']]
+    for col in df.columns:
+        if sum(df[col]):
+            return col.strip('class_')
+    return '新馬'
