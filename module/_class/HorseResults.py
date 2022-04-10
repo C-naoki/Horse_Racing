@@ -115,7 +115,7 @@ class HorseResults:
             if x in ['出遅れ', '出脚鈍い', '躓く', '好発']:
                 return x
             else:
-                return 0
+                return '0'
         # first_corner: 1コーナー(約1/5)通過時の着順
         # final_corner: 4コーナー(約4/5)通過時の着順
         df['first_corner'] = df['通過'].map(lambda x: corner(x, 1))
@@ -125,6 +125,7 @@ class HorseResults:
         df['first_to_rank'] = df['first_corner'] - df['order']
         df['first_to_final'] = df['first_corner'] - df['final_corner']
         df['remark'] = df['備考'].map(lambda x: remarks(x))
+        df['remark'] = df['remark'].astype(str)
         
         #開催場所
         df['venue'] = df['開催'].str.extract(r'(\D+)')[0].map(place_dict).fillna('11')
