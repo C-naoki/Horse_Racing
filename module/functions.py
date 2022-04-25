@@ -42,12 +42,13 @@ def all_update_data(dict, year_list=['2017', '2018', '2019', '2020', '2021', '20
     return ans
 
 def split_data(df, test_size=0.3):
-    sorted_id_list = df.sort_values('date').index.unique()
+    df_i = df.reset_index()
+    sorted_id_list = df_i.sort_values(['date', 'index']).index.unique()
     train_id_list = sorted_id_list[: round(len(sorted_id_list) * (1 - test_size))]
     test_id_list = sorted_id_list[round(len(sorted_id_list) * (1 - test_size)) :]
-    train = df.loc[train_id_list]
-    test = df.loc[test_id_list]
-    return train, test
+    train = df_i.loc[train_id_list]
+    test = df_i.loc[test_id_list]
+    return train.set_index('index'), test.set_index('index')
 
 def gain(return_func, X, n_samples=100, t_range=[0.5, 3.5]):
     gain = {}
@@ -74,7 +75,7 @@ def plot(df, label=' '):
     plt.legend() #labelで設定した凡例を表示させる
     plt.grid(True) #グリッドをつける
 
-def xlsx2pdf(pdf_file, ws, pagesize=[500, 250]):
+def xlsx2pdf(pdf_file, ws, pagesize=[600, 250]):
     doc = SimpleDocTemplate( pdf_file, pagesize=(pagesize[0]*mm, pagesize[1]*mm) )
     pdfmetrics.registerFont(TTFont('meiryo', '/Users/naoki/Downloads/font/meiryo/meiryo.ttc'))
     pdf_data = []
@@ -133,6 +134,7 @@ def div(a, b, digit=4):
     else:
         return round(a / b, digit)
 
+# BoP: Balance of Payments
 def make_BoP_sheet(total, excel_path, pdf_path, total_columns):
     wb = xl.load_workbook(excel_path)
     total_columns = [i for i in total_columns if '複勝' not in i]
@@ -368,13 +370,27 @@ def isExist_date(session, date):
     html = session.get(url)
     html.encoding = "EUC-JP"
     soup = BeautifulSoup(html.content, "html.parser")
-    # レースのある日付だけを引っ張ってこれる
+    # レースのある日付だけを引っ張ってくる
     for true_date in soup.find_all('table')[0].find_all('td'):
+        print(true_date)
         try:
             if re.findall(r'\d+', true_date.find('a').get('href'))[0] == date: return True
         except:
             pass
     return False
+
+def held_date_in_month(session, month):
+    url = 'https://db.netkeiba.com/race/list/' + month
+    html = session.get(url)
+    html.encoding = "EUC-JP"
+    soup = BeautifulSoup(html.content, "html.parser")
+    date_list = list()
+    for date in soup.find_all('table')[0].find_all('td'):
+        try:
+            date_list.append(re.findall(r'\d+', date.find('a').get('href'))[0])
+        except:
+            pass
+    return date_list
 
 def make_venue_id_list(date, num='all'):
     venue_id_list = set()
