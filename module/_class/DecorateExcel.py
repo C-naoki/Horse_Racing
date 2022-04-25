@@ -56,9 +56,19 @@ class DecorateExcel:
     def is_heading_cell(self, cell):
         return (cell.column == self.row_heading) or (cell.row == self.col_heading)
     
-    # あるレースの本命馬の着順と入力した着順が一致しているかどうか判定する関数
-    def is_hit_order(self, cell, order):
-        return '('+str(order)+')' in self.ws.cell(column=self.col_index('1着予想◎'), row=cell.row).value
+    # あるレースの入力した予想着順と入力した実際の着順が一致しているかどうか判定する関数
+    def is_hit_order(self, cell, real_order, predict_order):
+        mapping_dict = {1: '◎', 2: '○', 3: '▲', 4: '△', 5: '☆', 6: '×'}
+        return '('+str(real_order)+')' in self.ws.cell(column=self.col_index('{}着予想{}'.format(predict_order, mapping_dict[predict_order])), row=cell.row).value
+
+    # ある着順(1-3)の馬が複勝圏内かどうか、複勝圏内である場合その着順はいくらか
+    # (例: 3着予想の馬が実際1着である場合、is_fukusho=1, real_order=1)
+    def is_hit_fukusho(self, cell, predict_order):
+        # 予想着順が1-3ではない場合、たとえ複勝が的中していてもそもそも購入対象ではないため、0を返り値とする。
+        if predict_order <= 0 or predict_order > 3: return 0, 0
+        for real_order in range(1, 4):
+            if self.is_hit_order(cell, real_order, predict_order): return 1, real_order
+        return 0, 0
 
     # あるレースの三連複が的中したかどうか判定する関数
     def is_hit_sanrenpuku(self, cell, num):
@@ -73,7 +83,7 @@ class DecorateExcel:
     
     # あるレースの三連単が的中したかどうか判定する関数
     def is_hit_sanrentan(self, cell, num):
-        return self.is_hit_sanrenpuku(cell, num) and self.is_hit_order(cell, 1)
+        return self.is_hit_sanrenpuku(cell, num) and self.is_hit_order(cell, 1, 1)
 
     # 入力した名前の列名のindexを返す関数
     def col_index(self, name):
@@ -148,8 +158,11 @@ class DecorateExcel:
                     self.to_percent(cell, pct_list)
                     # 特定の条件を満たした、見出し以外のセルの色を変更する
                     for color, value_dict in mapping_dict.items():
+                        # 1着予想した馬が複勝圏内である場合、オレンジ色に着色されるようにしている。
+                        if '複勝オッズ' in self.col_name(cell): is_fukusho, real_order = self.is_hit_fukusho(cell, value_dict['order'])
                         if (    self.ws[coord].value == value_dict['rank']
-                            or (self.col_name(cell) == '単勝オッズ' and self.is_hit_order(cell, value_dict['order']))
+                            or (self.col_name(cell) == '単勝オッズ' and self.is_hit_order(cell, value_dict['order'], 1))
+                            or ('複勝オッズ' in self.col_name(cell) and self.col_name(cell) == '{}着複勝オッズ'.format(str(real_order)) and is_fukusho)
                             or (self.col_name(cell) == '三連複オッズ' and self.is_hit_sanrenpuku(cell, 4-value_dict['order']))
                             or (self.col_name(cell) == '三連単オッズ' and self.is_hit_sanrentan(cell, 4-value_dict['order']))):
                             self.ws[coord].fill = PatternFill(patternType='solid', fgColor=color)
