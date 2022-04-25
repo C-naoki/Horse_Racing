@@ -12,7 +12,7 @@ from environment.settings import *
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder_id', 'birthday', 'owner_id', 'trainer_id']]
+        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder_id', 'birthday', 'owner_id', 'trainer_id', '着差']]
         self.preprocessing()
     
     @classmethod
@@ -111,21 +111,54 @@ class HorseResults:
                 return int(re.findall(r'\d+', x)[-1])
             elif n==1:
                 return int(re.findall(r'\d+', x)[0])
+
+        # 備考欄
         def remarks(x):
             if x in ['出遅れ', '出脚鈍い', '躓く', '好発']:
                 return x
             else:
                 return '0'
+
+        # 着差
+        def diff2num(x):
+            if x == '0' or x == '同着': return 0
+            elif x == 'ハナ': return 0.08
+            elif x == 'アタマ': return 0.15
+            elif x == 'クビ': return 0.30
+            elif x == '大': return 10
+            elif '.' in x:
+                x = x.split('.')
+            else: x = [x]
+            ans = 0
+            for num in x:
+                if '/' in num:
+                    numerator, denominator = num.split('/')
+                    ans += float(numerator) / float(denominator)
+                else: ans += float(num)
+            return ans
+
+        def difference_horses(x):
+            ans = 0
+            x = str(x)
+            if '+' in x:
+                x = x.split('+')
+            else:
+                x = [x]
+            for num in x:
+                ans += diff2num(num)
+            return ans
+
         # first_corner: 1コーナー(約1/5)通過時の着順
         # final_corner: 4コーナー(約4/5)通過時の着順
         df['first_corner'] = df['通過'].map(lambda x: corner(x, 1))
         df['final_corner'] = df['通過'].map(lambda x: corner(x, 4))
-        
         df['final_to_rank'] = df['final_corner'] - df['order']
         df['first_to_rank'] = df['first_corner'] - df['order']
         df['first_to_final'] = df['first_corner'] - df['final_corner']
         df['remark'] = df['備考'].map(lambda x: remarks(x))
         df['remark'] = df['remark'].astype(str)
+        df['diff'] = df['着差'].fillna('0').map(lambda x: difference_horses(x)).astype(float)
+        df['diff'] = df['diff'].astype(float)
         
         #開催場所
         df['venue'] = df['開催'].str.extract(r'(\D+)')[0].map(place_dict).fillna('11')
@@ -133,7 +166,7 @@ class HorseResults:
         df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(race_type_dict)
         #距離は10の位を切り捨てる
         df['course_len'] = df['距離'].str.extract(r'(\d+)').astype(int) // 100
-        df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考'], axis=1, inplace=True)
+        df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', '着差'], axis=1, inplace=True)
         #インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
@@ -141,11 +174,10 @@ class HorseResults:
         self.encode()
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(avg_target_listの要素)
         # 過去の平均値を出したいデータ
-        self.avg_target_list = ['order', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'last3F', 'time_idx', 'ground_state_idx']
+        self.avg_target_list = ['order', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'last3F', 'time_idx', 'ground_state_idx', 'diff']
         self.past_target_list = ['rece_num', 'remark'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
-
         self.horse_results = df
 
     def encode(self):
