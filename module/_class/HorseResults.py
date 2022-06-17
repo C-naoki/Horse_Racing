@@ -2,26 +2,42 @@ import numpy as np
 import pandas as pd
 import re
 import time
-import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 from ..functions import update_data
-from environment.settings import *
+from environment import settings as sets
+
 
 class HorseResults:
     def __init__(self, horse_results):
-        self.horse_results = horse_results[['日付', '着順', '通過', '開催', '距離', '上り', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', 'breeder_id', 'birthday', 'owner_id', 'trainer_id', '着差']]
+        self.horse_results = horse_results[[
+            '日付',
+            '着順',
+            '通過',
+            '開催',
+            '距離',
+            '上り',
+            'R',
+            'ﾀｲﾑ指数',
+            '馬場指数',
+            '備考',
+            'breeder_id',
+            'birthday',
+            'owner_id',
+            'trainer_id',
+            '着差'
+            ]]
         self.preprocessing()
-    
+
     @classmethod
     def read_pickle(cls, path_list):
         df = pd.read_pickle(path_list[0])
         for path in path_list[1:]:
             df = update_data(df, pd.read_pickle(path))
         return cls(df)
-    
+
     @staticmethod
     def scrape(horse_id_list, pre_horse_results=pd.DataFrame()):
         """
@@ -44,11 +60,11 @@ class HorseResults:
             try:
                 time.sleep(1)
                 url = 'https://db.netkeiba.com/horse/' + horse_id
-                html = session.get(url)
+                html = sets.session.get(url)
                 html.encoding = "EUC-JP"
                 df = pd.read_html(html.content)[3]
-                #受賞歴がある馬の場合、3番目に受賞歴テーブルが来るため、4番目のデータを取得する
-                if df.columns[0]=='受賞歴':
+                # 受賞歴がある馬の場合、3番目に受賞歴テーブルが来るため、4番目のデータを取得する
+                if df.columns[0] == '受賞歴':
                     df = pd.read_html(url)[4]
                 soup = BeautifulSoup(html.content, "html.parser")
                 info_list = soup.find_all('table')[1].find_all('td')
@@ -63,7 +79,7 @@ class HorseResults:
                             df['owner_id'] = [re.sub('owner|/', '', info.find('a').get('href'))] * len(df)
                         if "/breeder/" in info.find('a').get('href'):
                             df['breeder_id'] = [re.sub('breeder|/', '', info.find('a').get('href'))] * len(df)
-                    except:
+                    except Exception:
                         continue
                 df.index = [horse_id] * len(df)
                 horse_results[horse_id] = df
@@ -72,10 +88,8 @@ class HorseResults:
             except Exception as e:
                 print(e)
                 break
-            except:
-                break
         # pd.DataFrame型にして一つのデータにまとめる
-        try:       
+        try:
             horse_results_df = pd.concat([horse_results[key] for key in horse_results])
         except ValueError:
             return pre_horse_results
@@ -83,7 +97,7 @@ class HorseResults:
             return pd.concat([pre_horse_results, horse_results_df])
         else:
             return horse_results_df
-    
+
     def preprocessing(self):
         df = self.horse_results.copy()
 
@@ -94,22 +108,22 @@ class HorseResults:
         # 日付データ
         df["date"] = pd.to_datetime(df["日付"])
         # 上り3F
-        df['last3F'] = df['上り'].fillna(0).map(lambda x: int(str(x)[0:2]) + int(str(x)[3])/10 if x!=0 else 0)
+        df['last3F'] = df['上り'].fillna(0).map(lambda x: int(str(x)[0:2]) + int(str(x)[3])/10 if x != 0 else 0)
         # レース情報がないデータはほとんどの情報が欠落しているため削除する。
-        df = df[np.isnan(df['R'])==False]
+        df = df[~np.isnan(df['R'])]
         df['rece_num'] = df['R'].fillna(0).astype(int)
         df['time_idx'] = df['ﾀｲﾑ指数'].replace('**', 0).fillna(0).astype(float)
         df['ground_state_idx'] = df['馬場指数'].replace('**', 0).fillna(0).astype(float)
         df['birthday'] = df['birthday'].astype(int)
-        
-        #レース展開データ
-        #n=1: 最初のコーナー位置, n=4: 最終コーナー位置
+
+        # レース展開データ
+        # n=1: 最初のコーナー位置, n=4: 最終コーナー位置
         def corner(x, n):
             if type(x) != str:
                 return x
-            elif n==4:
+            elif n == 4:
                 return int(re.findall(r'\d+', x)[-1])
-            elif n==1:
+            elif n == 1:
                 return int(re.findall(r'\d+', x)[0])
 
         # 備考欄
@@ -121,20 +135,27 @@ class HorseResults:
 
         # 着差
         def diff2num(x):
-            if x == '0' or x == '同着': return 0
-            elif x == 'ハナ': return 0.08
-            elif x == 'アタマ': return 0.15
-            elif x == 'クビ': return 0.30
-            elif x == '大': return 10
+            if x == '0' or x == '同着':
+                return 0
+            elif x == 'ハナ':
+                return 0.08
+            elif x == 'アタマ':
+                return 0.15
+            elif x == 'クビ':
+                return 0.30
+            elif x == '大':
+                return 10
             elif '.' in x:
                 x = x.split('.')
-            else: x = [x]
+            else:
+                x = [x]
             ans = 0
             for num in x:
                 if '/' in num:
                     numerator, denominator = num.split('/')
                     ans += float(numerator) / float(denominator)
-                else: ans += float(num)
+                else:
+                    ans += float(num)
             return ans
 
         def difference_horses(x):
@@ -159,22 +180,33 @@ class HorseResults:
         df['remark'] = df['remark'].astype(str)
         df['diff'] = df['着差'].fillna('0').map(lambda x: difference_horses(x)).astype(float)
         df['diff'] = df['diff'].astype(float)
-        
-        #開催場所
-        df['venue'] = df['開催'].str.extract(r'(\D+)')[0].map(place_dict).fillna('11')
-        #race_type
-        df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(race_type_dict)
-        #距離は10の位を切り捨てる
+
+        # 開催場所
+        df['venue'] = df['開催'].str.extract(r'(\D+)')[0].map(sets.place_dict).fillna('11')
+        # race_type
+        df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(sets.race_type_dict)
+        # 距離は10の位を切り捨てる
         df['course_len'] = df['距離'].str.extract(r'(\d+)').astype(int) // 100
         df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', '着差'], axis=1, inplace=True)
-        #インデックス名を与える
+        # インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
         # str型のデータをラベルエンコーディングする
         self.encode()
         # ex. ) "course_len"(kind_listの要素)毎の"着順"(avg_target_listの要素)
         # 過去の平均値を出したいデータ
-        self.avg_target_list = ['order', 'first_corner', 'final_corner', 'first_to_rank', 'first_to_final','final_to_rank', 'last3F', 'time_idx', 'ground_state_idx', 'diff']
+        self.avg_target_list = [
+            'order',
+            'first_corner',
+            'final_corner',
+            'first_to_rank',
+            'first_to_final',
+            'final_to_rank',
+            'last3F',
+            'time_idx',
+            'ground_state_idx',
+            'diff'
+            ]
         self.past_target_list = ['rece_num', 'remark'] + self.avg_target_list
         # 種類に分割したいデータ
         self.kind_list = ['course_len', 'race_type', 'venue']
@@ -187,11 +219,11 @@ class HorseResults:
             df[column] = df[column].astype('category')
         self.horse_results = df
 
-    #n_samplesレース分馬ごとに平均する
+    # n_samplesレース分馬ごとに平均する
     def average(self, horse_id_list, date, n_samples='all'):
         # horse_id_listに含まれたindexに絞る
         target_df = self.horse_results.query('index in @horse_id_list')
-        
+
         # 過去何走分取り出すか指定
         if n_samples == 'all':
             filtered_df = target_df[target_df['date'] < date]
@@ -199,18 +231,20 @@ class HorseResults:
             filtered_df = target_df[target_df['date'] < date].sort_values('date', ascending=False).groupby(level=0).head(n_samples)
         else:
             raise Exception('n_samples must be >0')
-        
+
         # 集計して辞書型に入れる
         self.average_dict = {}
         # filtered_dfをhorse_id毎に分割し、平均値を出す。そして、その平均値の名前を元の名前に_{}Rをつけた名前とする。
         # ex.) filterd_dfでorder(self.avg_target_listの要素の一つ)を上からn_samples(=5)個ずつ取得する。その平均値に対して、名前をorder_5Rと再決定する。
-        self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.avg_target_list].mean().add_suffix('_{}R'.format(n_samples))
+        self.average_dict['non_category'] = filtered_df.groupby(level=0)[self.avg_target_list]\
+            .mean().add_suffix('_{}R'.format(n_samples))
         for column in self.kind_list:
-            self.average_dict[column] = filtered_df.groupby(['horse_id', column])[self.avg_target_list].mean().add_suffix('_{}_{}R'.format(column, n_samples))
-    
+            self.average_dict[column] = filtered_df.groupby(['horse_id', column])[self.avg_target_list]\
+                .mean().add_suffix('_{}_{}R'.format(column, sets.n_samples))
+
     def merge_average(self, results, date, n_samples='all'):
         # ある日付に関する情報のみに絞る
-        df = results[results['date']==date]
+        df = results[results['date'] == date]
         # horse_id_listを取得する
         horse_id_list = df['horse_id']
         self.average(horse_id_list, date, n_samples)
@@ -235,13 +269,14 @@ class HorseResults:
         target_df = self.horse_results.query('index in @horse_id_list')
         filtered_df = target_df[target_df['date'] < date].sort_values('date', ascending=False).groupby(level=0).head(n_samples)
         self.past_dict = {}
-        self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.past_target_list].tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
+        self.past_dict['non_category'] = filtered_df.groupby(level=0)[self.past_target_list]\
+            .tail(1).add_suffix('_{}R'.format(n_samples)).add_prefix('p_')
         if isZero == 0:
             self.latest = filtered_df.groupby('horse_id')['date'].max().rename('latest')
 
     def merge_past(self, results, date, n_samples, isZero):
         # ある日付に関する情報のみに絞る
-        df = results[results['date']==date]
+        df = results[results['date'] == date]
         # horse_id_listを取得する
         horse_id_list = df['horse_id']
         self.past(horse_id_list, date, n_samples, isZero)

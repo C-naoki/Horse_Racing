@@ -1,5 +1,4 @@
 import openpyxl as xl
-import numpy as np
 import pandas as pd
 
 from openpyxl.styles.alignment import Alignment
@@ -9,29 +8,30 @@ from openpyxl.styles.borders import Border, Side
 from matplotlib.colors import rgb2hex
 import matplotlib.pyplot as plt
 
+
 class DecorateExcel:
     def __init__(self, df, excel_path, sheet_name, mode='append'):
-        self.excel_path = excel_path # xlsxファイルの保存先
-        self.sheet_name = sheet_name # 扱うsheet名
-        self.row_heading = 1 # 行見出し
-        self.col_heading = 1 # 列見出し
-        self.row_length = 0 # 表の行の長さ
-        self.col_length = 0 # 表の列の長さ
+        self.excel_path = excel_path  # xlsxファイルの保存先
+        self.sheet_name = sheet_name  # 扱うsheet名
+        self.row_heading = 1  # 行見出し
+        self.col_heading = 1  # 列見出し
+        self.row_length = 0  # 表の行の長さ
+        self.col_length = 0  # 表の列の長さ
         self.mode = mode
         self.side = Side(style='thin', color='000000')
         self.border = Border(top=self.side, bottom=self.side, left=self.side, right=self.side)
         self.df = df
         self.df2xlsx()
-    
+
     # wbを保存する関数
     def save(self):
         self.wb.save(self.excel_path)
         self.wb.close()
-    
+
     # dfをxlsxに書き込む関数
     def df2xlsx(self):
         if self.mode == 'append':
-            self.wb = xl.load_workbook(self.excel_path) # workbook
+            self.wb = xl.load_workbook(self.excel_path)  # workbook
             writer = pd.ExcelWriter(self.excel_path, engine='openpyxl')
             writer.book = self.wb
             writer.sheets = {ws.title: ws for ws in self.wb.worksheets}
@@ -42,45 +42,51 @@ class DecorateExcel:
             writer = pd.ExcelWriter(self.excel_path, engine='openpyxl', mode='a', if_sheet_exists='replace')
             self.df.to_excel(writer, sheet_name=self.sheet_name, startrow=0, startcol=0)
             writer.save()
-            self.wb = xl.load_workbook(self.excel_path) # workbook
+            self.wb = xl.load_workbook(self.excel_path)  # workbook
         self.ws = self.wb[self.sheet_name]
         self.row_length, self.col_length = self.df.shape
         self.col_heading = writer.sheets[self.sheet_name].max_row - self.row_length
 
     # 表の左上に表題を記述する関数
-    def write_title(self, name = '', font = Font(bold=True, color='ffffff')):
-        self.ws.cell(column = self.row_heading, row = self.col_heading).value = name
-        self.ws.cell(column = self.row_heading, row = self.col_heading).font = font
+    def write_title(self, name='', font=Font(bold=True, color='ffffff')):
+        self.ws.cell(column=self.row_heading, row=self.col_heading).value = name
+        self.ws.cell(column=self.row_heading, row=self.col_heading).font = font
 
     # cellが表の見出しかどうか判定する関数
     def is_heading_cell(self, cell):
         return (cell.column == self.row_heading) or (cell.row == self.col_heading)
-    
+
     # あるレースの入力した予想着順と入力した実際の着順が一致しているかどうか判定する関数
     def is_hit_order(self, cell, real_order, predict_order):
         mapping_dict = {1: '◎', 2: '○', 3: '▲', 4: '△', 5: '☆', 6: '×'}
-        return '('+str(real_order)+')' in self.ws.cell(column=self.col_index('{}着予想{}'.format(predict_order, mapping_dict[predict_order])), row=cell.row).value
+        return '('+str(real_order)+')' in self.ws.cell(
+            column=self.col_index('{}着予想{}'.format(predict_order, mapping_dict[predict_order])),
+            row=cell.row
+        ).value
 
     # ある着順(1-3)の馬が複勝圏内かどうか、複勝圏内である場合その着順はいくらか
     # (例: 3着予想の馬が実際1着である場合、is_fukusho=1, real_order=1)
     def is_hit_fukusho(self, cell, predict_order):
         # 予想着順が1-3ではない場合、たとえ複勝が的中していてもそもそも購入対象ではないため、0を返り値とする。
-        if predict_order <= 0 or predict_order > 3: return 0, 0
+        if predict_order <= 0 or predict_order > 3:
+            return 0, 0
         for real_order in range(1, 4):
-            if self.is_hit_order(cell, real_order, predict_order): return 1, real_order
+            if self.is_hit_order(cell, real_order, predict_order):
+                return 1, real_order
         return 0, 0
 
     # あるレースの三連複が的中したかどうか判定する関数
     def is_hit_sanrenpuku(self, cell, num):
-        race_data = self.df.loc[self.ws.cell(column = self.row_heading, row = cell.row).value]
+        race_data = self.df.loc[self.ws.cell(column=self.row_heading, row=cell.row).value]
         race_data_index = race_data.index.values
         cnt = 0
         for data, index in zip(race_data, race_data_index):
-            if '予想' not in index: continue
+            if '予想' not in index:
+                continue
             for order in ['(1)', '(2)', '(3)']:
                 cnt += order in data
         return cnt == num
-    
+
     # あるレースの三連単が的中したかどうか判定する関数
     def is_hit_sanrentan(self, cell, num):
         return self.is_hit_sanrenpuku(cell, num) and self.is_hit_order(cell, 1, 1)
@@ -101,13 +107,16 @@ class DecorateExcel:
         # セルのフォーマットをパーセンテージにする
         if self.col_name(cell) in pct_list:
             cell.number_format = '0.00%'
-    
+
     # 馬のスコアごとにカラーリング(赤色のグラデーション)
     def coloring_by_score(self, proba_table, venue_id):
         cmap = plt.get_cmap('Reds')
         for row in self.ws.rows:
             if self.col_heading < row[0].row <= self.col_heading + self.row_length:
-                for cell, score in zip(row[3:9], proba_table.loc[venue_id+str(row[0].row-1).zfill(2)].sort_values('score', ascending = False)['score'].head(6)):
+                for cell, score in zip(
+                    row[3:9],
+                    proba_table.loc[venue_id+str(row[0].row-1).zfill(2)].sort_values('score', ascending=False)['score'].head(6)
+                ):
                     coord = cell.coordinate
                     score = max(min(score, 3.5), 0)
                     colorcode = rgb2hex(cmap(score/3.5)).replace('#', '')
@@ -132,12 +141,13 @@ class DecorateExcel:
                 max_length = max(max_length, len(str(cell.value)))
                 # 文字を中心に配置する
                 cell.alignment = Alignment(
-                                            horizontal = 'center', 
-                                            vertical = 'center',
-                                            wrap_text = False
+                                            horizontal='center',
+                                            vertical='center',
+                                            wrap_text=False
                                             )
                 # 範囲外のセルへの変更は施さない
-                if cell.row < self.col_heading-1 or cell.row > self.col_heading + self.row_length: continue
+                if cell.row < self.col_heading-1 or cell.row > self.col_heading + self.row_length:
+                    continue
                 # 表の間と右の余白は白色にする
                 elif cell.row == self.col_heading-1 or cell.column > self.col_length+1:
                     self.ws[coord].fill = PatternFill(patternType='solid', fgColor='ffffff')
@@ -159,12 +169,13 @@ class DecorateExcel:
                     # 特定の条件を満たした、見出し以外のセルの色を変更する
                     for color, value_dict in mapping_dict.items():
                         # 1着予想した馬が複勝圏内である場合、オレンジ色に着色されるようにしている。
-                        if '複勝オッズ' in self.col_name(cell): is_fukusho, real_order = self.is_hit_fukusho(cell, value_dict['order'])
-                        if (    self.ws[coord].value == value_dict['rank']
-                            or (self.col_name(cell) == '単勝オッズ' and self.is_hit_order(cell, value_dict['order'], 1))
-                            or ('複勝オッズ' in self.col_name(cell) and self.col_name(cell) == '{}着複勝オッズ'.format(str(real_order)) and is_fukusho)
-                            or (self.col_name(cell) == '三連複オッズ' and self.is_hit_sanrenpuku(cell, 4-value_dict['order']))
-                            or (self.col_name(cell) == '三連単オッズ' and self.is_hit_sanrentan(cell, 4-value_dict['order']))):
+                        if '複勝オッズ' in self.col_name(cell):
+                            is_fukusho, real_order = self.is_hit_fukusho(cell, value_dict['order'])
+                        if (self.ws[coord].value == value_dict['rank'] or
+                                (self.col_name(cell) == '単勝オッズ' and self.is_hit_order(cell, value_dict['order'], 1)) or
+                                ('複勝オッズ' in self.col_name(cell) and self.col_name(cell) == '{}着複勝オッズ'.format(str(real_order)) and is_fukusho) or
+                                (self.col_name(cell) == '三連複オッズ' and self.is_hit_sanrenpuku(cell, 4-value_dict['order'])) or
+                                (self.col_name(cell) == '三連単オッズ' and self.is_hit_sanrentan(cell, 4-value_dict['order']))):
                             self.ws[coord].fill = PatternFill(patternType='solid', fgColor=color)
                             self.ws[coord].font = Font(color='000000')
                 self.ws[coord].border = self.border

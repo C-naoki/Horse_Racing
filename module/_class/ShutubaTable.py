@@ -1,33 +1,31 @@
-import sys
-sys.path.extend(['.../', './'])
-
 import time
 import datetime
 import requests
 import re
 import numpy as np
 import pandas as pd
-from . import DataProcessor
+from .DataProcessor import DataProcessor
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 from environment.settings import place_dict
+
 
 class ShutubaTable(DataProcessor):
     def __init__(self, shutuba_tables, r, hr, p, n_samples, past, avg, ped):
         super(ShutubaTable, self).__init__()
         self.data = shutuba_tables
         self.make_data(r, hr, p, n_samples, past, avg, ped)
-    
+
     def make_data(self, r, hr, p, n_samples, past, avg, ped):
         self.preprocessing()
         self.merge_horse_results(hr, n_samples[0], n_samples[1], past, avg)
         if ped:
             self.merge_peds(p.peds_e)
-        self.process_categorical(r.le_horse, r.le_jockey)
+        self.process_categorical(r.le_horse, r.le_jockey, n_samples_list1=n_samples[0], n_samples_list2=n_samples[1])
 
     @classmethod
     def scrape(cls, race_id_dict, date, venue_id, r, hr, p, n_samples=[[5, 9, 'all'], [1, 2, 3, 4, 5]], past=True, avg=False, ped=False):
-        race_id_list = race_id_dict[venue_id][venue_id[4:6]][venue_id[6:8]]
+        race_id_list = race_id_dict[venue_id[4:6]][venue_id[6:8]]
         place = venue_id[4:6]
         pbar = tqdm(total=len(race_id_list))
         data = pd.DataFrame()
@@ -96,34 +94,49 @@ class ShutubaTable(DataProcessor):
             data = data.append(df)
         return cls(data, r, hr, p, n_samples, past, avg, ped)
 
-    #前処理
+    # 前処理
     def preprocessing(self):
         df = self.data.copy()
-        
         df["sex"] = df["性齢"].map(lambda x: str(x)[0])
         df["age"] = df["性齢"].map(lambda x: str(x)[1:]).astype(int)
-        
         df["date"] = pd.to_datetime(df["date"])
         df["month_sin"] = df["date"].map(lambda x: np.sin(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
         df["month_cos"] = df["date"].map(lambda x: np.cos(2*np.pi*(datetime.date(x.year, x.month, x.day)-datetime.date(x.year, 1, 1)).days/366))
-        
         df['bracket_num'] = df['枠'].astype(int)
         df['horse_num'] = df['馬番'].astype(int)
         df['weight_carry'] = df['斤量'].astype(int)
-
-        df['venue'] = df.index.map(lambda x:str(x)[4:6])
-
-        #6/6出走数追加
+        df['venue'] = df.index.map(lambda x: str(x)[4:6])
+        # 6/6出走数追加
         df['n_horses'] = df.index.map(df.index.value_counts())
         df["course_len"] = df["course_len"].astype(float) // 100
 
         # 使用する列を選択
+        df_copy = df[[
+            'bracket_num',
+            'horse_num',
+            'weight_carry',
+            'course_len',
+            'race_type',
+            'date',
+            'horse_id',
+            'jockey_id',
+            'sex',
+            'age',
+            'venue',
+            'n_horses',
+            'month_cos',
+            'month_sin',
+            'turn',
+            'race_num',
+            'day',
+            'kai',
+            'prize',
+            'class'
+        ]].copy()
         try:
-            df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len', 'weather','race_type', 'ground_state', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
-        except:
-            # 未来の天気及び、馬場状況は判定できないため、それぞれ晴、良と仮定する。
-            df = df[['bracket_num', 'horse_num', 'weight_carry', 'course_len','race_type', 'date', 'horse_id', 'jockey_id', 'sex', 'age', 'venue', 'n_horses', 'month_cos', 'month_sin', 'turn', 'race_num', 'day', 'kai', 'prize', 'class']]
-            df['weather'] = ['晴'] * len(df)
-            df['ground_state'] = ['良'] * len(df)
-        
-        self.data_p = df.rename(columns={'枠': '枠番'})
+            df_copy = df_copy[['weather', 'ground_state']]
+        except Exception:
+            # レース当日にならないと未来の天気及び馬場状況は判定できないため、それぞれ晴、良と仮定する。
+            df_copy.loc[:, 'weather'] = '晴'
+            df_copy.loc[:, 'ground_state'] = '良'
+        self.data_p = df_copy.rename(columns={'枠': '枠番'})
