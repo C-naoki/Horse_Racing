@@ -1,5 +1,13 @@
 import module as m
-import module._class as c
+from module._class import (
+    HorseResults,
+    Peds,
+    Results,
+    ShutubaTable,
+    ModelEvaluator,
+    Return,
+    DecorateExcel
+)
 import _dat
 from environment import settings as sets
 
@@ -49,9 +57,9 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
         sheet_name = day+'日'+venue_name
         file_path = '../results/'+sets.year+'/pdf/'+sets.month+'月/'+sheet_name+'.pdf'
         # 出馬表インスタンスの作成
-        shutuba_table = c.ShutubaTable.scrape(race_id_dict, date, venue_id, results, horse_results, peds, n_samples=sets.n_samples)
+        shutuba_table = ShutubaTable.scrape(race_id_dict, date, venue_id, results, horse_results, peds, n_samples=sets.n_samples)
         # ModelEvaluatorインスタンスの作成
-        model_evaluator = c.ModelEvaluator(lgb_clf, sets.tables_path, kind=1, obj=sets.objective_type)
+        model_evaluator = ModelEvaluator(lgb_clf, sets.tables_path, kind=1, obj=sets.objective_type)
         X_fact = shutuba_table.data_c.drop(sets.drop_list+['date'], axis=1)
         # 各レースの本命馬、対抗馬、単穴馬、連下馬の出力
         pred = model_evaluator.predict_proba(X_fact, train=False)
@@ -60,8 +68,8 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
         # 払い戻し表のスクレイピング(まだサイトが完成していない場合はexceptに飛ぶ)
         try:
             exists_return_tables = 1
-            today_return_tables, arrival_tables_df = c.Return.scrape(race_id_dict)
-            rt = c.Return(today_return_tables)
+            today_return_tables, arrival_tables_df = Return.scrape(race_id_dict)
+            rt = Return(today_return_tables)
             tansho_df = rt.tansho.fillna(0)
             fukusho_df = rt.fukusho.fillna(0)
             sanrentan_df = rt.sanrentan.fillna(0)
@@ -237,7 +245,7 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
 
         if exists_return_tables:
             # predict_dfをexcelに追記
-            decorate_excel = c.DecorateExcel(predict_df, sets.excel_path, sheet_name, mode='new')
+            decorate_excel = DecorateExcel(predict_df, sets.excel_path, sheet_name, mode='new')
             decorate_excel.decorate_excelsheet()
             decorate_excel.coloring_by_score(proba_table, venue_id)
             decorate_excel.save()
@@ -393,14 +401,14 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
             wb.close()
 
             # return1_dfをexcelに追記
-            decorate_excel = c.DecorateExcel(return1_df, sets.excel_path, sheet_name)
+            decorate_excel = DecorateExcel(return1_df, sets.excel_path, sheet_name)
             decorate_excel.decorate_excelsheet(
                                                 pct_list=['単勝回収率', '複勝回収率', '三連単流し回収率', '三連複流し回収率']
                                                 )
             decorate_excel.save()
 
             # return2_dfをexcelに追記
-            decorate_excel = c.DecorateExcel(return2_df, sets.excel_path, sheet_name)
+            decorate_excel = DecorateExcel(return2_df, sets.excel_path, sheet_name)
             decorate_excel.decorate_excelsheet()
             decorate_excel.save()
 
@@ -428,9 +436,9 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
 
 if __name__ == '__main__':
     # インスタンスの作成
-    horse_results = c.HorseResults(_dat.horse_results['overall'])
-    peds = c.Peds(_dat.ped_results['overall'])
-    results = c.Results(_dat.race_results['overall'], horse_results, peds, n_samples=sets.n_samples)
+    horse_results = HorseResults(_dat.horse_results['overall'])
+    peds = Peds(_dat.ped_results['overall'])
+    results = Results(_dat.race_results['overall'], horse_results, peds, n_samples=sets.n_samples)
     if sets.all_date:
         date_list = m.held_date_in_month(sets.session, sets.year+sets.month.zfill(2))
         for date in date_list:
