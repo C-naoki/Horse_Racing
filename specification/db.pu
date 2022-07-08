@@ -1,0 +1,9 @@
+@startuml erd
+!include tables.pu
+results --|| horse_race
+results --|{ horse_profile
+results --|{  race
+horse_profile --|| jockey
+horse_profile --|| owner
+horse_profile --|| breeder
+@enduml

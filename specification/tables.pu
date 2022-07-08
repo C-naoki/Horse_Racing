@@ -1,0 +1,101 @@
+@startuml tables
+entity race as "race\nレース情報"{
+    + race_id [PK]
+    --
+    turn
+    weather
+    course_len
+    course_type [芝orダート]
+    ground_state [馬場状態]
+    date
+    class [レースクラス]
+    race_num
+    ground_state_idx [馬場状態指数]
+    day
+    kai
+    prize
+    venue
+    n_horses
+    month_sin
+    month_cos
+}
+
+entity results as "results\nレース結果" {
+    + race_id [PK]
+    + horse_id [PK]
+    --
+    jockey_id
+    bracket_num [枠番]
+    horse_num [馬番]
+    weight_carry [斤量]
+    odds
+    rank_binary
+    rank_regression
+    rank_lambdarank
+}
+
+entity horse_profile as "horse_profile\n馬の情報(レース非依存)"{
+    + horse_id [PK]
+    --
+    breeder_id [生産者id]
+    owner_id [馬主id]
+    trainer_id [調教師id]
+    sex
+    birthday
+    age
+    father_id
+    mother_id
+    central_prize
+    local_prize
+}
+
+entity horse_race as "horse_race\n馬の情報(レース依存)" {
+    + race_id [PK]
+    + horse_id [PK]
+    --
+    last3F [上り３ハロン]
+    time_idx [タイム指数]
+    first_corner
+    final_corner
+    first_to_rank
+    final_to_rank
+    first_to_final
+    remark [備考]
+    diff [着差]
+    venue
+    course_type [芝orダート]
+    course_len
+}
+
+entity jockey{
+    + jockey_id [PK]
+    + date [PK]
+    + race_num [PK]
+    --
+    n_rate
+    n_rate_pop
+    n_rate_by_venue
+    n_rate_by_course_type
+}
+
+entity owner{
+    + owner_id [PK]
+    + date [PK]
+    + race_num [PK]
+    --
+    n_rate
+    n_rate_pop
+    n_rate_by_venue
+    n_rate_by_course_type
+}
+
+entity breeder{
+    + breeder_id [PK]
+    + date [PK]
+    + race_num [PK]
+    --
+    n_rate
+    n_rate_pop
+    n_rate_by_venue
+    n_rate_by_course_type
+}
