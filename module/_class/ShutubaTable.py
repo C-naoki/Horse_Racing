@@ -91,7 +91,7 @@ class ShutubaTable(DataProcessor):
             df['horse_id'] = horse_id_list
             df['jockey_id'] = jockey_id_list
             df.index = [race_id] * len(df)
-            data = data.append(df)
+            data = pd.concat([data, df])
         return cls(data, r, hr, p, n_samples, past, avg, ped)
 
     # 前処理
