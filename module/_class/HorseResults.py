@@ -187,7 +187,7 @@ class HorseResults:
         df['race_type'] = df['距離'].str.extract(r'(\D+)')[0].map(sets.race_type_dict)
         # 距離は10の位を切り捨てる
         df['course_len'] = df['距離'].str.extract(r'(\d+)').astype(int) // 100
-        df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', '着差'], axis=1, inplace=True)
+        df.drop(['距離', '日付', '着順', '開催', 'R', 'ﾀｲﾑ指数', '馬場指数', '備考', '着差', '上り', '通過'], axis=1, inplace=True)
         # インデックス名を与える
         df.index.name = 'horse_id'
         self.horse_results = df
