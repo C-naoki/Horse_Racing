@@ -112,14 +112,15 @@ def predict(horse_results, peds, results, date=sets.date.replace('/', ''), venue
                 # あるレースの買うべき複勝馬券を計算する
                 for horse_num, row in today_df.iterrows():
                     if m.get_better_fukusho(fukusho_odds_df, row['score'], row['fukusho_odds']):
-                        better_fukusho_df = better_fukusho_df.append(
-                            pd.Series([
-                                race_id,
-                                horse_num,
-                                list(proba[1].sort_values('score', ascending=False)['horse_num']).index(int(horse_num))+1,
-                                row['fukusho_odds'],
-                                row['score']
-                            ], index=better_fukusho_df.columns),
+                        better_fukusho_df = pd.concat([
+                                better_fukusho_df,
+                                pd.DataFrame([[
+                                    race_id,
+                                    horse_num,
+                                    list(proba[1].sort_values('score', ascending=False)['horse_num']).index(int(horse_num))+1,
+                                    row['fukusho_odds'],
+                                    row['score']
+                                ]], columns=better_fukusho_df.columns)],
                             ignore_index=True
                         )
                 # 買うべき複勝馬に星マークをつける
