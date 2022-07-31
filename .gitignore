@@ -3,3 +3,6 @@ __pycache__/
 .python-version
 show.py
 .env
+.envrc
+lambda_test.py
+results/
